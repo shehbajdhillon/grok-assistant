@@ -28,9 +28,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Assistant, TonePreset, VoiceId } from '@/types';
+import { Assistant, TonePreset, VoiceId, VoiceType } from '@/types';
 import { TONE_LABELS, TONE_COLORS, VOICE_LABELS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { VoiceUpload } from './voice-upload';
+import * as api from '@/lib/api-client';
 
 const EMOJI_OPTIONS = ['🤖', '🧙', '💪', '🌙', '⚡', '🏛️', '🎭', '🦊', '🐺', '🦁', '🐸', '🦉', '🌟', '💎', '🔥', '🌊'];
 
@@ -55,9 +57,14 @@ export function EditorForm({
   const [description, setDescription] = useState(assistant?.description || '');
   const [personality, setPersonality] = useState(assistant?.personality || '');
   const [tone, setTone] = useState<TonePreset>(assistant?.tone || 'friendly');
-  const [voiceId, setVoiceId] = useState<VoiceId>(assistant?.voiceSettings.voiceId || 'ara');
-  const [speed, setSpeed] = useState(assistant?.voiceSettings.speed || 1.0);
-  const [pitch, setPitch] = useState(assistant?.voiceSettings.pitch || 1.0);
+  const [voiceType, setVoiceType] = useState<VoiceType>(assistant?.voiceSettings?.voiceType || 'preset');
+  const [voiceId, setVoiceId] = useState<VoiceId>(assistant?.voiceSettings?.voiceId || 'ara');
+  const [customVoiceUrl, setCustomVoiceUrl] = useState<string | null>(assistant?.voiceSettings?.customVoiceUrl || null);
+  const [customVoiceFileName, setCustomVoiceFileName] = useState<string | null>(assistant?.voiceSettings?.customVoiceFileName || null);
+  const [pendingVoiceFile, setPendingVoiceFile] = useState<File | null>(null);
+  const [isUploadingVoice, setIsUploadingVoice] = useState(false);
+  const [speed, setSpeed] = useState(assistant?.voiceSettings?.speed || 1.0);
+  const [pitch, setPitch] = useState(assistant?.voiceSettings?.pitch || 1.0);
   const [avatarEmoji, setAvatarEmoji] = useState(assistant?.avatarEmoji || '🤖');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(assistant?.avatarUrl || null);
   const [isPublic, setIsPublic] = useState(assistant?.isPublic ?? true);
@@ -79,7 +86,10 @@ export function EditorForm({
       personality: personality.trim(),
       tone,
       voiceSettings: {
+        voiceType,
         voiceId,
+        customVoiceUrl,
+        customVoiceFileName,
         speed,
         pitch,
       },
@@ -91,6 +101,54 @@ export function EditorForm({
     });
 
     setIsSaving(false);
+  };
+
+  // Handle voice file selection (for new assistants, store file for later upload)
+  const handleVoiceFileSelect = async (file: File) => {
+    if (isEditing && assistant?.id) {
+      // Existing assistant - upload immediately
+      setIsUploadingVoice(true);
+      try {
+        const updated = await api.uploadVoiceSample(assistant.id, file);
+        setVoiceType('custom');
+        setCustomVoiceUrl(updated.voiceSettings.customVoiceUrl);
+        setCustomVoiceFileName(updated.voiceSettings.customVoiceFileName);
+        setPendingVoiceFile(null);
+      } catch (err) {
+        console.error('Failed to upload voice:', err);
+      } finally {
+        setIsUploadingVoice(false);
+      }
+    } else {
+      // New assistant - store file for display, will need to upload after creation
+      setVoiceType('custom');
+      setCustomVoiceFileName(file.name);
+      setPendingVoiceFile(file);
+    }
+  };
+
+  // Handle voice removal
+  const handleVoiceRemove = async () => {
+    if (isEditing && assistant?.id && customVoiceUrl) {
+      // Existing assistant with uploaded voice - delete from server
+      setIsUploadingVoice(true);
+      try {
+        await api.removeVoiceSample(assistant.id);
+        setVoiceType('preset');
+        setCustomVoiceUrl(null);
+        setCustomVoiceFileName(null);
+      } catch (err) {
+        console.error('Failed to remove voice:', err);
+      } finally {
+        setIsUploadingVoice(false);
+      }
+    } else {
+      // New assistant or pending file - just clear local state
+      setVoiceType('preset');
+      setCustomVoiceUrl(null);
+      setCustomVoiceFileName(null);
+      setPendingVoiceFile(null);
+    }
   };
 
   const handleAddTag = () => {
@@ -388,54 +446,100 @@ export function EditorForm({
             <h2 className="mb-6 text-lg font-semibold">Voice Settings</h2>
 
             <div className="space-y-6">
-              {/* Voice Selection */}
+              {/* Voice Type Toggle */}
               <div>
-                <Label>Voice</Label>
-                <Select value={voiceId} onValueChange={(v) => setVoiceId(v as VoiceId)}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(VOICE_LABELS) as VoiceId[]).map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {VOICE_LABELS[v]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="mb-3 block">Voice Type</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVoiceType('preset')}
+                    className={cn(
+                      'flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all',
+                      voiceType === 'preset'
+                        ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                        : 'border-border/50 hover:border-border hover:bg-muted/50'
+                    )}
+                  >
+                    Preset Voice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceType('custom')}
+                    className={cn(
+                      'flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all',
+                      voiceType === 'custom'
+                        ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                        : 'border-border/50 hover:border-border hover:bg-muted/50'
+                    )}
+                  >
+                    Custom Voice
+                  </button>
+                </div>
               </div>
 
-              {/* Speed */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Speed</Label>
-                  <span className="text-sm text-muted-foreground">{speed.toFixed(1)}x</span>
+              {/* Preset Voice Selection */}
+              {voiceType === 'preset' ? (
+                <div>
+                  <Label>Voice</Label>
+                  <Select value={voiceId} onValueChange={(v) => setVoiceId(v as VoiceId)}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(VOICE_LABELS) as VoiceId[]).map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {VOICE_LABELS[v]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Slider
-                  value={[speed]}
-                  onValueChange={([v]) => setSpeed(v)}
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                  className="mt-3"
+              ) : (
+                /* Custom Voice Upload */
+                <VoiceUpload
+                  currentFileName={customVoiceFileName}
+                  onFileSelect={handleVoiceFileSelect}
+                  onRemove={handleVoiceRemove}
+                  isUploading={isUploadingVoice}
+                  disabled={!isEditing && !pendingVoiceFile && !!customVoiceFileName}
                 />
-              </div>
+              )}
 
-              {/* Pitch */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Pitch</Label>
-                  <span className="text-sm text-muted-foreground">{pitch.toFixed(1)}x</span>
-                </div>
-                <Slider
-                  value={[pitch]}
-                  onValueChange={([v]) => setPitch(v)}
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                  className="mt-3"
-                />
-              </div>
+              {/* Speed - only show for preset voices (xAI cloning doesn't support speed/pitch) */}
+              {voiceType === 'preset' && (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Speed</Label>
+                      <span className="text-sm text-muted-foreground">{speed.toFixed(1)}x</span>
+                    </div>
+                    <Slider
+                      value={[speed]}
+                      onValueChange={([v]) => setSpeed(v)}
+                      min={0.5}
+                      max={2}
+                      step={0.1}
+                      className="mt-3"
+                    />
+                  </div>
+
+                  {/* Pitch */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Pitch</Label>
+                      <span className="text-sm text-muted-foreground">{pitch.toFixed(1)}x</span>
+                    </div>
+                    <Slider
+                      value={[pitch]}
+                      onValueChange={([v]) => setPitch(v)}
+                      min={0.5}
+                      max={2}
+                      step={0.1}
+                      className="mt-3"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </Card>
 

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Type aliases matching frontend types
 VoiceId = Literal["ara", "rex", "eve", "leo", "una", "sal"]
+VoiceType = Literal["preset", "custom"]
 
 # Map old OpenAI voice IDs to xAI voices (for backwards compatibility)
 VOICE_ID_MIGRATION: dict[str, str] = {
@@ -21,10 +22,21 @@ VOICE_ID_MIGRATION: dict[str, str] = {
 
 
 def migrate_voice_settings(voice_settings: dict | None) -> dict:
-    """Migrate old voice IDs to new xAI voice IDs."""
-    settings = voice_settings.copy() if voice_settings else {"voiceId": "ara", "speed": 1.0, "pitch": 1.0}
+    """Migrate old voice IDs to new xAI voice IDs and ensure all fields exist."""
+    defaults = {
+        "voiceType": "preset",
+        "voiceId": "ara",
+        "customVoiceUrl": None,
+        "customVoiceFileName": None,
+        "speed": 1.0,
+        "pitch": 1.0,
+    }
+    settings = {**defaults, **(voice_settings or {})}
+
+    # Migrate old voice IDs
     old_voice_id = settings.get("voiceId", "ara")
     settings["voiceId"] = VOICE_ID_MIGRATION.get(old_voice_id, old_voice_id)
+
     return settings
 
 
@@ -62,7 +74,10 @@ TonePreset = Literal[
 class VoiceSettings(BaseModel):
     """Voice settings schema."""
 
+    voiceType: VoiceType = "preset"
     voiceId: VoiceId = "ara"
+    customVoiceUrl: Optional[str] = None
+    customVoiceFileName: Optional[str] = None
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
     pitch: float = Field(default=1.0, ge=0.5, le=2.0)
 

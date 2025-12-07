@@ -3,7 +3,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -19,6 +19,7 @@ from app.schemas.assistant import (
 )
 from app.services import assistant_service
 from app.services.assistant_generation_service import assistant_generation_service
+from app.services.supabase_storage_service import supabase_storage_service
 
 router = APIRouter(prefix="/assistants", tags=["assistants"])
 
@@ -175,3 +176,105 @@ async def delete_assistant(
         raise HTTPException(status_code=403, detail="You don't own this assistant")
 
     await assistant_service.delete_assistant(db, assistant)
+
+
+@router.post("/{assistant_id}/voice", response_model=AssistantResponse)
+async def upload_custom_voice(
+    assistant_id: UUID,
+    audio: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> AssistantResponse:
+    """
+    Upload a custom voice sample for an assistant.
+
+    Accepts: mp3, m4a, wav files up to 10MB.
+    The voice sample will be used for voice cloning when TTS is triggered.
+    """
+    assistant = await assistant_service.get_assistant_by_id(db, assistant_id)
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant not found")
+
+    # Check ownership
+    if assistant.is_system:
+        raise HTTPException(status_code=403, detail="Cannot modify system assistants")
+    if assistant.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this assistant")
+
+    # Read file data
+    file_data = await audio.read()
+    filename = audio.filename or "voice.mp3"
+    content_type = audio.content_type or "audio/mpeg"
+
+    try:
+        # Delete old voice sample if exists
+        old_url = (assistant.voice_settings or {}).get("customVoiceUrl")
+        if old_url:
+            await supabase_storage_service.delete_voice_sample(old_url)
+
+        # Upload new voice sample
+        voice_url = await supabase_storage_service.upload_voice_sample(
+            user_id=str(current_user.id),
+            assistant_id=str(assistant_id),
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+        )
+
+        # Update voice settings
+        current_settings = assistant.voice_settings or {}
+        new_settings = {
+            **current_settings,
+            "voiceType": "custom",
+            "customVoiceUrl": voice_url,
+            "customVoiceFileName": filename,
+        }
+
+        assistant = await assistant_service.update_assistant(
+            db, assistant, voice_settings=new_settings
+        )
+
+        return AssistantResponse.from_orm_with_mapping(assistant)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{assistant_id}/voice", response_model=AssistantResponse)
+async def remove_custom_voice(
+    assistant_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> AssistantResponse:
+    """Remove custom voice and revert to preset voice."""
+    assistant = await assistant_service.get_assistant_by_id(db, assistant_id)
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant not found")
+
+    # Check ownership
+    if assistant.is_system:
+        raise HTTPException(status_code=403, detail="Cannot modify system assistants")
+    if assistant.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this assistant")
+
+    # Delete from storage
+    voice_url = (assistant.voice_settings or {}).get("customVoiceUrl")
+    if voice_url:
+        await supabase_storage_service.delete_voice_sample(voice_url)
+
+    # Reset to preset voice
+    current_settings = assistant.voice_settings or {}
+    new_settings = {
+        "voiceType": "preset",
+        "voiceId": current_settings.get("voiceId", "ara"),
+        "customVoiceUrl": None,
+        "customVoiceFileName": None,
+        "speed": current_settings.get("speed", 1.0),
+        "pitch": current_settings.get("pitch", 1.0),
+    }
+
+    assistant = await assistant_service.update_assistant(
+        db, assistant, voice_settings=new_settings
+    )
+
+    return AssistantResponse.from_orm_with_mapping(assistant)
