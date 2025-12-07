@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { EditorForm } from '@/components/assistant-editor';
 import { useAssistants } from '@/hooks/use-assistants';
@@ -12,26 +12,45 @@ export default function EditAssistantPage() {
   const { getById, update, remove } = useAssistants();
 
   const assistantId = params.id as string;
-  const assistant = getById(assistantId);
+  const [assistant, setAssistant] = useState<Assistant | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Redirect if assistant not found
+  // Load assistant
   useEffect(() => {
-    if (!assistant) {
+    getById(assistantId)
+      .then(data => {
+        if (data) {
+          setAssistant(data);
+        } else {
+          router.push('/home');
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load assistant:', err);
+        router.push('/home');
+      })
+      .finally(() => setLoading(false));
+  }, [assistantId, getById, router]);
+
+  const handleSave = async (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
+    try {
+      await update(assistantId, data);
       router.push('/home');
+    } catch (err) {
+      console.error('Failed to update assistant:', err);
     }
-  }, [assistant, router]);
-
-  const handleSave = (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
-    update(assistantId, data);
-    router.push('/home');
   };
 
-  const handleDelete = () => {
-    remove(assistantId);
-    router.push('/home');
+  const handleDelete = async () => {
+    try {
+      await remove(assistantId);
+      router.push('/home');
+    } catch (err) {
+      console.error('Failed to delete assistant:', err);
+    }
   };
 
-  if (!assistant) {
+  if (loading || !assistant) {
     return null;
   }
 

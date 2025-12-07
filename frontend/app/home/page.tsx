@@ -1,12 +1,45 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { AssistantGrid } from '@/components/discovery';
-import { useAssistants } from '@/hooks/use-assistants';
+import { Assistant } from '@/types';
+import * as api from '@/lib/api-client';
+import { useAuthReady } from '@/components/providers/api-provider';
 
 export default function DiscoveryPage() {
-  const { assistants } = useAssistants();
+  const [assistants, setAssistants] = useState<Assistant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const authReady = useAuthReady();
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    // Load both public assistants and user's own assistants
+    Promise.all([
+      api.getPublicAssistants(),
+      api.getAssistants()
+    ])
+      .then(([publicAssistants, userAssistants]) => {
+        // Combine and deduplicate (in case user's assistant is also public)
+        const allAssistants = [...publicAssistants];
+
+        // Add user's assistants that aren't already in the list
+        userAssistants.forEach(userAssistant => {
+          if (!allAssistants.find(a => a.id === userAssistant.id)) {
+            allAssistants.push(userAssistant);
+          }
+        });
+
+        // Sort by usage count (most popular first)
+        allAssistants.sort((a, b) => b.usageCount - a.usageCount);
+
+        setAssistants(allAssistants);
+      })
+      .catch(err => console.error('Failed to load assistants:', err))
+      .finally(() => setLoading(false));
+  }, [authReady]);
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-10">

@@ -15,7 +15,6 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Conversation } from '@/types';
-import { getAssistant } from '@/lib/mock-data';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -73,8 +72,10 @@ export function Sidebar({ conversations, onConversationClick }: SidebarProps) {
               </p>
             ) : (
               conversations.slice(0, 10).map((convo) => {
-                const assistant = getAssistant(convo.assistantId);
+                const assistant = convo.assistant;
                 const isActive = pathname === `/home/chat/${convo.id}`;
+
+                if (!assistant) return null;
 
                 return (
                   <Link

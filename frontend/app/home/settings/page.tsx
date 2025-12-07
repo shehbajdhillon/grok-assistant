@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useTheme } from 'next-themes';
-import { getCurrentUser, updateUserPreferences } from '@/lib/mock-data';
+import * as api from '@/lib/api-client';
 import { APP_NAME } from '@/lib/constants';
 
 export default function SettingsPage() {
@@ -31,18 +31,21 @@ export default function SettingsPage() {
   // Load user preferences on mount
   useEffect(() => {
     setMounted(true);
-    const user = getCurrentUser();
-    setVoiceEnabled(user.preferences.defaultVoiceEnabled);
-    setAutoPlayVoice(user.preferences.autoPlayVoice);
+    api.getCurrentUser()
+      .then(user => {
+        setVoiceEnabled(user.preferences.defaultVoiceEnabled);
+        setAutoPlayVoice(user.preferences.autoPlayVoice);
+      })
+      .catch(err => console.error('Failed to load user preferences:', err));
   }, []);
 
   // Save preferences when they change
   useEffect(() => {
     if (mounted) {
-      updateUserPreferences({
+      api.updateUserPreferences({
         defaultVoiceEnabled: voiceEnabled,
         autoPlayVoice: autoPlayVoice,
-      });
+      }).catch(err => console.error('Failed to save preferences:', err));
     }
   }, [voiceEnabled, autoPlayVoice, mounted]);
 

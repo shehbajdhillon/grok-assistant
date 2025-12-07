@@ -42,6 +42,14 @@ export interface Message {
   createdAt: Date;
 }
 
+export interface ConversationAssistantInfo {
+  id: string;
+  name: string;
+  avatarEmoji: string;
+  tone: TonePreset;
+  voiceSettings?: VoiceSettings;
+}
+
 export interface Conversation {
   id: string;
   assistantId: string;
@@ -50,6 +58,7 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   userId: string;
+  assistant?: ConversationAssistantInfo;
 }
 
 export interface User {
