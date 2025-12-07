@@ -102,6 +102,8 @@ The application will automatically use the model specified in `LETTA_MODEL` when
 
 ## Usage
 
+### CLI Application
+
 Run the chat application:
 ```bash
 # From the project root
@@ -147,6 +149,84 @@ Dating Coach: That's completely normal! First dates can be nerve-wracking...
 You: memory
 --- Conversation Memory ---
 - User mentioned being nervous about first date
+```
+
+### FastAPI Backend
+
+The application includes a FastAPI backend that provides REST API endpoints for frontend integration.
+
+#### Starting the API Server
+
+```bash
+# From the project root
+python backend/run_server.py
+
+# Or using uvicorn directly
+uvicorn backend.api:app --reload --port 8000
+```
+
+The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
+
+#### API Endpoints
+
+**Health Check**
+- `GET /health` - Check server status and configuration
+
+**Personas**
+- `GET /api/personas` - Get all available personas
+- `GET /api/personas/current` - Get the current active persona
+- `POST /api/personas/set` - Set the active persona
+  ```json
+  {
+    "persona_key": "personal_assistant"
+  }
+  ```
+
+**Chat**
+- `POST /api/chat` - Send a chat message and get a response
+  ```json
+  {
+    "message": "Hello! How are you?",
+    "conversation_id": "optional-conversation-id"
+  }
+  ```
+
+**Memory**
+- `GET /api/memory` - Get the agent's memory blocks
+
+#### Testing the API
+
+A test script is included to verify the API endpoints:
+
+```bash
+# Make sure the server is running first, then:
+python backend/test_api.py
+```
+
+Or test manually with curl:
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Get personas
+curl http://localhost:8000/api/personas
+
+# Send a chat message
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello!"}'
+```
+
+#### CORS Configuration
+
+The API is configured to accept requests from:
+- `http://localhost:3000` (Next.js default)
+- `http://localhost:3001`
+- `http://127.0.0.1:3000`
+- `http://127.0.0.1:3001`
+
+To add more origins, edit `backend/api.py` and update the `allow_origins` list in the CORS middleware configuration.
 - Discussed strategies for managing first-date anxiety
 --- End Memory ---
 ```
@@ -156,16 +236,24 @@ You: memory
 ```
 grok-assistant/
 ├── backend/
-│   ├── __init__.py      # Backend package initialization
-│   ├── chat_app.py      # Main chat application with CLI interface
-│   └── personas.py      # Persona configurations and management
-├── requirements.txt     # Python dependencies
-├── pyproject.toml       # Project configuration (for uv)
-├── .gitignore          # Git ignore rules
-└── README.md           # This file
+│   ├── __init__.py          # Backend package initialization
+│   ├── chat_app.py          # Main chat application with CLI interface
+│   ├── personas.py          # Persona configurations and management
+│   ├── api.py               # FastAPI REST API server
+│   ├── run_server.py        # Script to run the FastAPI server
+│   ├── test_api.py          # API endpoint test script
+│   ├── requirements.txt      # Python dependencies
+│   ├── pyproject.toml       # Project configuration (for uv)
+│   ├── uv.lock              # Dependency lock file
+│   ├── setup_ollama.sh      # Ollama setup script
+│   └── .env.example         # Environment variables template
+├── frontend/                # Next.js frontend application
+├── .env                     # Environment variables (not in git)
+├── .gitignore              # Git ignore rules
+└── README.md               # This file
 ```
 
-The `backend/` folder contains all the Python backend code. You can add your web application code (Flask, FastAPI, React, etc.) in the root directory alongside the backend folder.
+The `backend/` folder contains all the Python backend code, including the FastAPI REST API. The `frontend/` folder contains the Next.js web application.
 
 ## Personas
 
