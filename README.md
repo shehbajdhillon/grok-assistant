@@ -369,14 +369,117 @@ The application uses Letta's memory management system:
 - **Summarization**: Automatically summarizes conversations after 15 messages
 - **Context Retention**: Maintains conversation context across interactions
 
-## Development
+## Debugging
 
-### Running Tests
+### Viewing Letta Memory and Debug Information
+
+You can use Letta's native client methods directly for debugging. The existing API endpoints already use these methods:
+
+#### 1. View Memory Blocks (via API)
+```bash
+curl http://localhost:8000/api/memory
+```
+
+This uses Letta's `client.agents.blocks.list()` method internally.
+
+#### 2. View Conversation History (via API)
+```bash
+curl "http://localhost:8000/api/conversation/history?conversation_id=conv-123&limit=50"
+```
+
+This uses Letta's `client.agents.messages.list()` method internally.
+
+#### 3. Get Agent ID (via API)
+```bash
+curl http://localhost:8000/api/agent/id
+```
+
+#### 4. Using Letta Client Directly (Python)
+
+You can also use Letta's Python client directly for more detailed debugging:
+
+```python
+from letta_client import Letta
+import os
+
+# Initialize Letta client
+client = Letta(base_url=os.getenv("LETTA_API_URL", "http://localhost:8283"))
+
+# Get agent ID (from your app)
+agent_id = "your-agent-id"  # Get from /api/agent/id
+
+# View memory blocks (Letta native method)
+memory_blocks = client.agents.blocks.list(agent_id=agent_id)
+for block in memory_blocks:
+    print(f"Label: {block.label}")
+    print(f"Value: {block.value}")
+    print()
+
+# View all messages (Letta native method)
+messages = client.agents.messages.list(
+    agent_id=agent_id,
+    limit=100,
+    order="desc",
+    order_by="created_at"
+)
+for msg in messages:
+    print(f"Type: {msg.message_type}")
+    print(f"Content: {msg.content}")
+    print()
+
+# Get agent details (Letta native method)
+agent = client.agents.get(agent_id=agent_id)
+print(f"Agent: {agent.name}")
+print(f"Model: {agent.model}")
+print(f"System: {agent.system}")
+```
+
+#### 5. Direct Letta API Access (HTTP)
+
+You can also access Letta's REST API directly:
 
 ```bash
-# Test backend API (ensure server is running first)
-python backend/test_api.py
+# Get agent ID first
+AGENT_ID=$(curl -s http://localhost:8000/api/agent/id | jq -r '.agent_id')
+
+# Get agent details
+curl "http://localhost:8283/v1/agents/${AGENT_ID}"
+
+# List all messages for an agent
+curl "http://localhost:8283/v1/agents/${AGENT_ID}/messages?limit=100"
+
+# List memory blocks
+curl "http://localhost:8283/v1/agents/${AGENT_ID}/blocks"
 ```
+
+#### 6. Interactive API Documentation
+
+The easiest way to explore available endpoints:
+- Open `http://localhost:8000/docs` in your browser
+- Try out the endpoints interactively
+
+### Common Debugging Scenarios
+
+**Problem: Messages not appearing in conversation**
+```bash
+# Check conversation history via API
+curl "http://localhost:8000/api/conversation/history?conversation_id=your-conv-id"
+
+# Or use Letta client directly in Python to see all messages including system ones
+```
+
+**Problem: Memory not being stored**
+```bash
+# Check memory blocks via API
+curl http://localhost:8000/api/memory
+
+# Or use Letta client: client.agents.blocks.list(agent_id=agent_id)
+```
+
+**Problem: Need to see system messages for debugging**
+Use Letta's client directly in Python - the API filters out system messages for the UI, but you can access them via the Letta client.
+
+## Development
 
 ### Stopping Services
 

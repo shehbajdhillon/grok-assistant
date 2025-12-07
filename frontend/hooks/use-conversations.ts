@@ -29,7 +29,19 @@ function historyToConversation(
   history: any
 ): Conversation {
   // API returns messages in desc order (newest first), reverse to show oldest first
+  // Filter out system messages and memory metadata as a safety measure
   const messages = history.messages
+    .filter((msg: any) => {
+      // Filter out system messages
+      if (msg.role === 'system' || msg.message_type === 'system_message') {
+        return false;
+      }
+      // Filter out messages with memory metadata
+      if (msg.content && (msg.content.includes('<memory_metadata>') || msg.content.toLowerCase().includes('memory_metadata'))) {
+        return false;
+      }
+      return true;
+    })
     .map((msg: any) => apiMessageToMessage(msg, conversationId))
     .reverse();
 
@@ -163,13 +175,16 @@ export function useConversation(conversationId: string | null) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (showLoading: boolean = true) => {
     if (!conversationId) {
       setConversation(null);
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (showLoading) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       const history = await apiClient.getConversationHistory(conversationId);
@@ -188,12 +203,18 @@ export function useConversation(conversationId: string | null) {
       console.error('Error refreshing conversation:', err);
       // Don't set conversation to null on error - keep existing state
     } finally {
+      // Always clear loading state, regardless of showLoading flag
       setIsLoading(false);
     }
   }, [conversationId]);
 
   useEffect(() => {
-    refresh();
+    // Initial load - show loading
+    refresh(true).catch((err) => {
+      console.error('Initial conversation load failed:', err);
+      // Ensure loading is cleared even if refresh fails
+      setIsLoading(false);
+    });
   }, [refresh]);
 
   const sendMessage = useCallback(
@@ -201,12 +222,13 @@ export function useConversation(conversationId: string | null) {
       if (!conversationId) return undefined;
 
       if (role === 'user') {
-        setIsLoading(true);
+        // Don't set isLoading here - that's for loading the conversation, not sending messages
+        setError(null); // Clear any previous errors
         try {
           // Send user message and get assistant response
           const response = await apiClient.sendMessage(content, conversationId);
           
-          // Update conversation with new messages
+          // Optimistically update conversation with new messages
           setConversation((prev) => {
             if (!prev) {
               // Create conversation if it doesn't exist
@@ -236,12 +258,21 @@ export function useConversation(conversationId: string | null) {
             };
           });
           
+          // Refresh conversation from API in background (without showing loading)
+          // This ensures we have the latest state but doesn't block the UI
+          refresh(false).catch((err) => {
+            console.warn('Background refresh failed:', err);
+            // If refresh fails, we still have the optimistic update
+          });
+          
           return apiMessageToMessage(response, conversationId);
         } catch (err: any) {
-          setError(err.message || 'Failed to send message');
-          throw err;
-        } finally {
-          setIsLoading(false);
+          // Set error but don't block the UI - just log it
+          const errorMessage = err.message || 'Failed to send message';
+          console.error('Error sending message:', errorMessage);
+          setError(errorMessage);
+          // Don't throw - let the UI continue showing the conversation
+          return undefined;
         }
       } else {
         // Assistant message (shouldn't be called directly)
@@ -255,7 +286,7 @@ export function useConversation(conversationId: string | null) {
         return message;
       }
     },
-    [conversationId]
+    [conversationId, refresh]
   );
 
   return {

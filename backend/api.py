@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -345,8 +345,6 @@ async def get_memory():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving memory: {str(e)}"
         )
-
-
 @app.get("/api/conversation/history", response_model=ConversationHistoryResponse, tags=["Conversation"])
 async def get_conversation_history(conversation_id: Optional[str] = None, limit: Optional[int] = None, order: str = "desc", group_id: Optional[str] = None):
     """Get conversation history for a specific conversation.
@@ -419,6 +417,10 @@ async def get_conversation_history(conversation_id: Optional[str] = None, limit:
                 # Skip reasoning messages - they're internal to the agent
                 continue
             
+            # Skip system messages - they're internal metadata and shouldn't be shown to users
+            if role == "system" or 'system' in message_type.lower() or 'system' in msg_class_name:
+                continue
+            
             # Extract content - try dict first, then attributes
             content = ""
             if 'content' in msg_dict and msg_dict['content']:
@@ -440,8 +442,12 @@ async def get_conversation_history(conversation_id: Optional[str] = None, limit:
                 if content_val:
                     content = str(content_val)
             
-            # Skip messages without content (except system messages)
-            if not content and role != "system":
+            # Skip messages without content
+            if not content:
+                continue
+            
+            # Skip messages that contain memory metadata (internal Letta information)
+            if '<memory_metadata>' in content or 'memory_metadata' in content.lower():
                 continue
             
             # Extract timestamp
