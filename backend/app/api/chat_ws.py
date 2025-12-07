@@ -47,7 +47,10 @@ async def chat_websocket(
     user_id: str | None = None
     db: AsyncSession | None = None
 
-    # Validate JWT token before accepting connection
+    # Must accept connection first before we can send close with reason
+    await websocket.accept()
+
+    # Validate JWT token
     try:
         token_data = await verify_websocket_token(token)
         logger.info(f"Chat WebSocket authenticated: {token_data.get('clerk_id')}")
@@ -82,8 +85,7 @@ async def chat_websocket(
         if assistant and assistant.voice_settings:
             voice_id = assistant.voice_settings.get("voiceId", "ara")
 
-        # Accept connection and join room
-        await websocket.accept()
+        # Join room (connection already accepted above)
         room = await chat_ws_manager.connect(conversation_id, user_id, websocket)
         logger.info(f"User {user_id} joined chat {conversation_id}")
 
