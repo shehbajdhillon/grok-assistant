@@ -17,6 +17,7 @@ dependencies = [
     "httpx>=0.26.0",
     "letta-client>=1.3.2",
     "python-dotenv>=1.0.0",
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]

@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ChatHeader, MessageList, ChatInput } from '@/components/chat';
 import { useConversation } from '@/hooks/use-conversations';
+import { useChatWebSocket } from '@/hooks/use-chat-websocket';
 import { useTTS } from '@/hooks/use-tts';
-import { Assistant } from '@/types';
+import { Assistant, Message } from '@/types';
 import * as api from '@/lib/api-client';
 
 export default function ChatPage() {
@@ -13,13 +14,42 @@ export default function ChatPage() {
   const router = useRouter();
   const conversationId = params.conversationId as string;
 
-  const { conversation, messages, sendMessage, refresh, loading } = useConversation(conversationId);
-  const { speak, stop, isPlaying } = useTTS();
+  // Load initial conversation data
+  const { conversation, messages: initialMessages, refresh, loading } = useConversation(conversationId);
+
+  // TTS hook for replaying past messages (click to play)
+  const { speak, stop, isPlaying: isTTSPlaying } = useTTS();
 
   const [assistant, setAssistant] = useState<Assistant | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+
+  // WebSocket for real-time chat
+  const {
+    isConnected,
+    isConnecting,
+    isPlaying: isStreamingAudio,
+    sendMessage: wsSendMessage,
+    stopAudio,
+    reconnect,
+  } = useChatWebSocket({
+    conversationId,
+    voiceEnabled,
+    onUserMessage: useCallback((message: Message) => {
+      setLocalMessages((prev) => [...prev, message]);
+    }, []),
+    onAssistantMessage: useCallback((message: Message) => {
+      setLocalMessages((prev) => [...prev, message]);
+      setPlayingMessageId(message.id);
+      setIsWaitingForResponse(false);
+    }, []),
+    onError: useCallback((error: string) => {
+      console.error('Chat WebSocket error:', error);
+      setIsWaitingForResponse(false);
+    }, []),
+  });
 
   // Load assistant data
   useEffect(() => {
@@ -37,40 +67,59 @@ export default function ChatPage() {
     }
   }, [loading, conversation, router]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
-    if (!assistant || !conversation) return;
+  // Reset local messages when conversation changes
+  useEffect(() => {
+    setLocalMessages([]);
+  }, [conversationId]);
 
-    setIsLoading(true);
+  // Merge initial messages with local messages (from WebSocket)
+  const allMessages = useCallback(() => {
+    const messageMap = new Map<string, Message>();
 
-    try {
-      // Send message to backend - it will return the assistant's response
-      const assistantMessage = await sendMessage(content);
-
-      // Auto-play voice if enabled
-      if (voiceEnabled && assistantMessage) {
-        setPlayingMessageId(assistantMessage.id);
-        speak(assistantMessage.content, assistant.voiceSettings);
-      }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    } finally {
-      setIsLoading(false);
+    // Add initial messages
+    for (const msg of initialMessages) {
+      messageMap.set(msg.id, msg);
     }
-  }, [assistant, conversation, sendMessage, voiceEnabled, speak]);
+
+    // Add/update with local messages (prefer local as they're more recent)
+    for (const msg of localMessages) {
+      messageMap.set(msg.id, msg);
+    }
+
+    // Sort by createdAt
+    return Array.from(messageMap.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [initialMessages, localMessages])();
+
+  const handleSendMessage = useCallback((content: string) => {
+    if (!assistant || !conversation || !isConnected) return;
+
+    setIsWaitingForResponse(true);
+
+    // Stop any playing audio
+    stopAudio();
+    stop();
+    setPlayingMessageId(null);
+
+    // Send via WebSocket
+    wsSendMessage(content);
+  }, [assistant, conversation, isConnected, wsSendMessage, stopAudio, stop]);
 
   const handleSendAudio = useCallback(async (audioBlob: Blob) => {
     if (!assistant || !conversation) return;
 
-    setIsLoading(true);
+    setIsWaitingForResponse(true);
 
     try {
-      // Send audio to backend for transcription and processing
+      // For now, audio messages still use HTTP (transcription happens server-side)
+      // TODO: Could extend WebSocket to support audio messages
       const assistantMessage = await api.sendAudioMessage(conversationId, audioBlob);
 
-      // Refresh conversation to get both messages (user transcription + assistant response)
+      // Refresh to get both messages
       await refresh();
 
-      // Auto-play voice if enabled
+      // Auto-play voice if enabled (using TTS hook for replay)
       if (voiceEnabled && assistantMessage) {
         setPlayingMessageId(assistantMessage.id);
         speak(assistantMessage.content, assistant.voiceSettings);
@@ -78,27 +127,34 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Failed to send audio message:', error);
     } finally {
-      setIsLoading(false);
+      setIsWaitingForResponse(false);
     }
   }, [assistant, conversation, conversationId, voiceEnabled, speak, refresh]);
 
+  // Play audio for a past message (using TTS hook, not streaming)
   const handlePlayAudio = useCallback((messageId: string, content: string) => {
     if (!assistant) return;
+
+    // Stop any streaming audio first
+    stopAudio();
+
     setPlayingMessageId(messageId);
     speak(content, assistant.voiceSettings);
-  }, [assistant, speak]);
+  }, [assistant, speak, stopAudio]);
 
   const handleStopAudio = useCallback(() => {
+    // Stop both streaming audio and TTS playback
+    stopAudio();
     stop();
     setPlayingMessageId(null);
-  }, [stop]);
+  }, [stopAudio, stop]);
 
-  // Clear playing state when speech ends
+  // Clear playing state when audio ends
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isTTSPlaying && !isStreamingAudio) {
       setPlayingMessageId(null);
     }
-  }, [isPlaying]);
+  }, [isTTSPlaying, isStreamingAudio]);
 
   const handleDeleteChat = useCallback(async () => {
     if (conversation) {
@@ -122,22 +178,31 @@ export default function ChatPage() {
         voiceEnabled={voiceEnabled}
         onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
         onDeleteChat={handleDeleteChat}
+        isConnected={isConnected}
+        isConnecting={isConnecting}
+        onReconnect={reconnect}
       />
 
       <MessageList
-        messages={messages}
+        messages={allMessages}
         assistant={assistant}
         playingMessageId={playingMessageId}
         onPlayAudio={handlePlayAudio}
         onStopAudio={handleStopAudio}
-        isLoading={isLoading || loading}
+        isLoading={isWaitingForResponse || loading}
       />
 
       <ChatInput
         onSend={handleSendMessage}
         onSendAudio={handleSendAudio}
-        disabled={isLoading}
-        placeholder={`Message ${assistant.name}...`}
+        disabled={isWaitingForResponse || !isConnected}
+        placeholder={
+          isConnecting
+            ? 'Connecting...'
+            : !isConnected
+            ? 'Disconnected - click to reconnect'
+            : `Message ${assistant.name}...`
+        }
       />
     </div>
   );

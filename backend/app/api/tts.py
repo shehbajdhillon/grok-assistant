@@ -1,58 +1,81 @@
-"""TTS (Text-to-Speech) API endpoints."""
+"""TTS (Text-to-Speech) WebSocket API endpoint."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
-from pydantic import BaseModel, Field
+import logging
 
-from app.dependencies import get_current_user
-from app.models.user import User
-from app.services.tts_service import tts_service
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
+from app.auth.websocket import verify_websocket_token
+from app.services.tts_ws_service import tts_ws_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 
 
-class TTSRequest(BaseModel):
-    """Request body for TTS synthesis."""
-
-    text: str = Field(..., min_length=1, max_length=5000, description="Text to convert to speech")
-    voice_id: str = Field(default="alloy", description="Voice ID (alloy, echo, fable, onyx, nova, shimmer)")
-    format: str = Field(default="mp3", description="Audio format (mp3, wav, opus, flac)")
-
-
-@router.post("/synthesize")
-async def synthesize_speech(
-    request: TTSRequest,
-    current_user: User = Depends(get_current_user),
-) -> Response:
+@router.websocket("/ws/stream")
+async def websocket_tts_stream(
+    websocket: WebSocket,
+    token: str = Query(...),
+):
     """
-    Convert text to speech using xAI TTS.
+    WebSocket endpoint for streaming TTS.
 
-    Returns audio bytes in the requested format.
+    Protocol:
+    1. Client connects with JWT token in query param
+    2. Server validates token
+    3. Client sends: {"text": "...", "voice_id": "ara"}
+    4. Server streams: {"type": "audio_chunk", "audio": "<base64>", "is_last": bool}
+    5. Connection closes after final chunk or on error
+
+    Audio Format:
+    - PCM linear16, 24kHz, mono
+    - Base64 encoded chunks
     """
+    # Validate JWT token before accepting connection
     try:
-        audio_bytes = await tts_service.synthesize(
-            text=request.text,
-            voice_id=request.voice_id,
-            response_format=request.format,
+        token_data = await verify_websocket_token(token)
+        logger.info(f"TTS WebSocket authenticated: {token_data.get('clerk_id')}")
+    except ValueError as e:
+        logger.warning(f"TTS WebSocket auth failed: {e}")
+        await websocket.close(code=4001, reason=str(e))
+        return
+
+    await websocket.accept()
+    logger.debug("TTS WebSocket connection accepted")
+
+    try:
+        # Wait for TTS request from client
+        request_data = await websocket.receive_json()
+        text = request_data.get("text", "")
+        voice_id = request_data.get("voice_id", "ara")
+
+        if not text:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Text is required",
+            })
+            return
+
+        # Stream audio via proxy to xAI
+        await tts_ws_service.stream_tts(
+            text=text,
+            voice_id=voice_id,
+            client_ws=websocket,
         )
 
-        # Set content type based on format
-        content_types = {
-            "mp3": "audio/mpeg",
-            "wav": "audio/wav",
-            "opus": "audio/opus",
-            "flac": "audio/flac",
-            "pcm": "audio/pcm",
-        }
-        content_type = content_types.get(request.format, "audio/mpeg")
-
-        return Response(
-            content=audio_bytes,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f"inline; filename=speech.{request.format}",
-            },
-        )
-
+    except WebSocketDisconnect:
+        logger.info("TTS WebSocket client disconnected")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"TTS WebSocket error: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e),
+            })
+        except Exception:
+            pass  # Client may have already disconnected
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass  # Already closed
