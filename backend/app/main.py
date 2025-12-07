@@ -69,6 +69,26 @@ async def health_check():
     return {"status": "healthy", "service": "ai-companion-backend"}
 
 
+@app.get("/health/letta")
+async def letta_health_check():
+    """Check Letta connectivity."""
+    from app.services.letta_service import letta_service
+    try:
+        # Try to list agents - this will fail if Letta is unreachable
+        agents = letta_service.client.agents.list()
+        return {
+            "status": "healthy",
+            "service": "letta",
+            "agent_count": len(agents) if agents else 0,
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "letta",
+            "error": str(e),
+        }
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
