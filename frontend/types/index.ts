@@ -1,4 +1,4 @@
-export type VoiceId = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+export type VoiceId = 'ara' | 'rex' | 'eve' | 'leo' | 'una' | 'sal';
 
 export type TonePreset =
   // Positive tones

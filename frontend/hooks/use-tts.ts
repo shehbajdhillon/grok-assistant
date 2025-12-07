@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { VoiceSettings } from '@/types';
+import { synthesizeSpeech } from '@/lib/api-client';
 
 interface UseTTSReturn {
   speak: (text: string, settings?: Partial<VoiceSettings>) => void;
@@ -11,7 +12,7 @@ interface UseTTSReturn {
 }
 
 const defaultSettings: VoiceSettings = {
-  voiceId: 'alloy',
+  voiceId: 'ara',
   speed: 1.0,
   pitch: 1.0,
 };
@@ -19,72 +20,101 @@ const defaultSettings: VoiceSettings = {
 export function useTTS(): UseTTSReturn {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setIsSupported(typeof window !== 'undefined' && 'speechSynthesis' in window);
+    // Audio playback is supported in all modern browsers
+    setIsSupported(typeof window !== 'undefined' && typeof Audio !== 'undefined');
+  }, []);
+
+  // Cleanup audio URL on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   const speak = useCallback(
-    (text: string, settings: Partial<VoiceSettings> = {}) => {
+    async (text: string, settings: Partial<VoiceSettings> = {}) => {
       if (!isSupported) return;
 
-      // Stop any current speech
-      window.speechSynthesis.cancel();
-
-      const mergedSettings = { ...defaultSettings, ...settings };
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      utterance.rate = mergedSettings.speed;
-      utterance.pitch = mergedSettings.pitch;
-
-      // Try to find a voice that matches the voiceId style
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        // Map our voice IDs to preferred voice characteristics
-        const voiceMap: Record<string, string[]> = {
-          alloy: ['Google US English', 'Microsoft David', 'Alex'],
-          echo: ['Google UK English Male', 'Microsoft Mark', 'Daniel'],
-          fable: ['Google UK English Female', 'Microsoft Hazel', 'Karen'],
-          onyx: ['Microsoft David', 'Google US English', 'Alex'],
-          nova: ['Google US English Female', 'Microsoft Zira', 'Samantha'],
-          shimmer: ['Microsoft Zira', 'Google US English Female', 'Victoria'],
-        };
-
-        const preferredNames = voiceMap[mergedSettings.voiceId] || [];
-        const matchedVoice = voices.find((v) =>
-          preferredNames.some((name) => v.name.includes(name))
-        );
-
-        if (matchedVoice) {
-          utterance.voice = matchedVoice;
-        }
+      // Stop any current audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
       }
 
-      utterance.onstart = () => setIsPlaying(true);
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
+      const mergedSettings = { ...defaultSettings, ...settings };
 
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+      try {
+        setIsPlaying(true);
+
+        // Call backend TTS API
+        const audioBuffer = await synthesizeSpeech(
+          text,
+          mergedSettings.voiceId,
+          'mp3'
+        );
+
+        // Create blob and audio element
+        const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        audioUrlRef.current = url;
+
+        const audio = new Audio(url);
+        audioRef.current = audio;
+
+        // Apply playback speed
+        audio.playbackRate = mergedSettings.speed;
+
+        audio.onended = () => {
+          setIsPlaying(false);
+          if (audioUrlRef.current) {
+            URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = null;
+          }
+        };
+
+        audio.onerror = () => {
+          console.error('Audio playback error');
+          setIsPlaying(false);
+          if (audioUrlRef.current) {
+            URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = null;
+          }
+        };
+
+        await audio.play();
+      } catch (error) {
+        console.error('TTS error:', error);
+        setIsPlaying(false);
+      }
     },
     [isSupported]
   );
 
   const stop = useCallback(() => {
-    if (!isSupported) return;
-    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
     setIsPlaying(false);
-  }, [isSupported]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (isSupported) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [isSupported]);
+  }, []);
 
   return { speak, stop, isPlaying, isSupported };
 }

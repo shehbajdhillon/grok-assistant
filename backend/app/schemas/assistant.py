@@ -8,6 +8,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Type aliases matching frontend types
 VoiceId = Literal["ara", "rex", "eve", "leo", "una", "sal"]
+
+# Map old OpenAI voice IDs to xAI voices (for backwards compatibility)
+VOICE_ID_MIGRATION: dict[str, str] = {
+    "alloy": "ara",
+    "echo": "rex",
+    "fable": "eve",
+    "onyx": "leo",
+    "nova": "una",
+    "shimmer": "sal",
+}
 TonePreset = Literal[
     # Positive tones
     "professional",
@@ -95,13 +105,18 @@ class AssistantResponse(AssistantBase):
     @classmethod
     def from_orm_with_mapping(cls, assistant) -> "AssistantResponse":
         """Create from ORM model with field name mapping."""
+        # Migrate old voice IDs to new xAI voice IDs
+        voice_settings = assistant.voice_settings.copy() if assistant.voice_settings else {}
+        old_voice_id = voice_settings.get("voiceId", "ara")
+        voice_settings["voiceId"] = VOICE_ID_MIGRATION.get(old_voice_id, old_voice_id)
+
         return cls(
             id=assistant.id,
             name=assistant.name,
             description=assistant.description,
             personality=assistant.personality,
             tone=assistant.tone,
-            voiceSettings=VoiceSettings(**assistant.voice_settings),
+            voiceSettings=VoiceSettings(**voice_settings),
             avatarEmoji=assistant.avatar_emoji,
             avatarUrl=assistant.avatar_url,
             isPublic=assistant.is_public,

@@ -31,12 +31,12 @@ export const TONE_LABELS: Record<string, string> = {
 };
 
 export const VOICE_LABELS: Record<string, string> = {
-  alloy: 'Alloy',
-  echo: 'Echo',
-  fable: 'Fable',
-  onyx: 'Onyx',
-  nova: 'Nova',
-  shimmer: 'Shimmer',
+  ara: 'Ara (Female)',
+  rex: 'Rex (Male)',
+  eve: 'Eve (Female)',
+  leo: 'Leo (Male)',
+  una: 'Una (Female)',
+  sal: 'Sal',
 };
 
 export const TONE_COLORS: Record<string, string> = {
