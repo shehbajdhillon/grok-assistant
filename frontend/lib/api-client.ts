@@ -166,23 +166,17 @@ export async function createConversation(assistantId: string): Promise<Conversat
   const data = await fetchAPI('/api/conversations', {
     method: 'POST',
     body: JSON.stringify({
-      assistant_id: assistantId,
+      assistantId: assistantId,
     }),
   });
 
   return {
     ...data,
-    assistantId: data.assistant_id,
-    userId: data.user_id,
-    createdAt: new Date(data.created_at),
-    updatedAt: new Date(data.updated_at),
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
     messages: data.messages?.map((m: any) => ({
-      id: m.id,
-      conversationId: m.conversation_id,
-      role: m.role,
-      content: m.content,
-      audioUrl: m.audio_url,
-      createdAt: new Date(m.created_at),
+      ...m,
+      createdAt: new Date(m.createdAt),
     })) || [],
   };
 }
@@ -197,12 +191,8 @@ export async function sendMessage(
   });
 
   return {
-    id: data.id,
-    conversationId: data.conversation_id,
-    role: data.role,
-    content: data.content,
-    audioUrl: data.audio_url,
-    createdAt: new Date(data.created_at),
+    ...data,
+    createdAt: new Date(data.createdAt),
   };
 }
 
