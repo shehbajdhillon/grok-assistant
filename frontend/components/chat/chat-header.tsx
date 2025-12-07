@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MoreVertical, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Volume2, VolumeX, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,9 @@ interface ChatHeaderProps {
   voiceEnabled?: boolean;
   onToggleVoice?: () => void;
   onDeleteChat?: () => void;
+  isConnected?: boolean;
+  isConnecting?: boolean;
+  onReconnect?: () => void;
 }
 
 export function ChatHeader({
@@ -28,6 +31,9 @@ export function ChatHeader({
   voiceEnabled = true,
   onToggleVoice,
   onDeleteChat,
+  isConnected = true,
+  isConnecting = false,
+  onReconnect,
 }: ChatHeaderProps) {
   const router = useRouter();
 
@@ -77,6 +83,30 @@ export function ChatHeader({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
+        {/* Connection status indicator */}
+        {isConnecting ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            disabled
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="sr-only">Connecting...</span>
+          </Button>
+        ) : !isConnected ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onReconnect}
+            className="h-9 w-9 text-destructive hover:text-destructive"
+            title="Disconnected - click to reconnect"
+          >
+            <WifiOff className="h-4 w-4" />
+            <span className="sr-only">Reconnect</span>
+          </Button>
+        ) : null}
+
         {onToggleVoice && (
           <Button
             variant="ghost"

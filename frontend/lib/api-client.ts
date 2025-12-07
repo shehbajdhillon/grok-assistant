@@ -269,39 +269,3 @@ export async function updateUserPreferences(
     preferences: data.preferences,
   };
 }
-
-// TTS API calls
-export async function synthesizeSpeech(
-  text: string,
-  voiceId: string = 'alloy',
-  format: string = 'mp3'
-): Promise<ArrayBuffer> {
-  let token: string | null = null;
-  if (getTokenFn) {
-    token = await getTokenFn();
-  }
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/api/tts/synthesize`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      text,
-      voice_id: voiceId,
-      format,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `TTS error: ${response.status}`);
-  }
-
-  return response.arrayBuffer();
-}
