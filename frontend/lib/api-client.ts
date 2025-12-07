@@ -16,6 +16,9 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (getTokenFn) {
     token = await getTokenFn();
+    console.log('Token retrieved:', token ? `${token.substring(0, 20)}...` : 'null');
+  } else {
+    console.warn('getTokenFn not initialized');
   }
 
   const headers: Record<string, string> = {
@@ -24,6 +27,8 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  } else {
+    console.warn('No token available for API request');
   }
 
   // Merge with any existing headers

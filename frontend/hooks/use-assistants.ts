@@ -3,11 +3,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Assistant } from '@/types';
 import * as api from '@/lib/api-client';
+import { useAuthReady } from '@/components/providers/api-provider';
 
 export function useAssistants() {
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const authReady = useAuthReady();
 
   const refresh = useCallback(async () => {
     try {
@@ -24,8 +26,10 @@ export function useAssistants() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (authReady) {
+      refresh();
+    }
+  }, [authReady, refresh]);
 
   const getById = useCallback(async (id: string) => {
     try {

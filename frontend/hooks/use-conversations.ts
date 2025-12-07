@@ -3,11 +3,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Conversation, Message } from '@/types';
 import * as api from '@/lib/api-client';
+import { useAuthReady } from '@/components/providers/api-provider';
 
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const authReady = useAuthReady();
 
   const refresh = useCallback(async () => {
     try {
@@ -24,8 +26,10 @@ export function useConversations() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (authReady) {
+      refresh();
+    }
+  }, [authReady, refresh]);
 
   const getById = useCallback(async (id: string) => {
     try {
@@ -99,6 +103,7 @@ export function useConversation(conversationId: string | null) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const authReady = useAuthReady();
 
   const refresh = useCallback(async () => {
     if (!conversationId) {
@@ -121,8 +126,10 @@ export function useConversation(conversationId: string | null) {
   }, [conversationId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (authReady) {
+      refresh();
+    }
+  }, [authReady, refresh]);
 
   const sendMessage = useCallback(
     async (content: string) => {
