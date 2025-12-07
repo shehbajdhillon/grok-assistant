@@ -142,3 +142,15 @@ class AssistantListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class AssistantGenerateRequest(BaseModel):
+    """Request schema for generating assistant from natural language."""
+
+    prompt: str = Field(..., min_length=10, max_length=1000)
+
+
+class AssistantGenerateResponse(AssistantBase):
+    """Response schema with generated assistant data for form pre-fill."""
+
+    pass

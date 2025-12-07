@@ -11,13 +11,36 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.assistant import (
     AssistantCreate,
+    AssistantGenerateRequest,
+    AssistantGenerateResponse,
     AssistantListResponse,
     AssistantResponse,
     AssistantUpdate,
 )
 from app.services import assistant_service
+from app.services.assistant_generation_service import assistant_generation_service
 
 router = APIRouter(prefix="/assistants", tags=["assistants"])
+
+
+@router.post("/generate", response_model=AssistantGenerateResponse)
+async def generate_assistant(
+    data: AssistantGenerateRequest,
+    _: User = Depends(get_current_user),
+) -> AssistantGenerateResponse:
+    """
+    Generate assistant configuration from natural language prompt.
+
+    Uses xAI/Grok to create form values based on user description.
+    Returns generated data for user to review and edit before saving.
+    """
+    try:
+        generated = await assistant_generation_service.generate_assistant(data.prompt)
+        return AssistantGenerateResponse(**generated)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to generate assistant")
 
 
 @router.get("", response_model=AssistantListResponse)

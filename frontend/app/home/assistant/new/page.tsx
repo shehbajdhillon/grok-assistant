@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { EditorForm } from '@/components/assistant-editor';
+import { GenerationWizard } from '@/components/assistant-editor/generation-wizard';
 import { useAssistants } from '@/hooks/use-assistants';
 import { Assistant } from '@/types';
 
@@ -9,10 +9,10 @@ export default function NewAssistantPage() {
   const router = useRouter();
   const { create } = useAssistants();
 
-  const handleSave = (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
-    create(data);
+  const handleSave = async (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
+    await create(data);
     router.push('/home');
   };
 
-  return <EditorForm onSave={handleSave} />;
+  return <GenerationWizard onSave={handleSave} />;
 }
