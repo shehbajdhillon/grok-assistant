@@ -114,6 +114,23 @@ class HealthResponse(BaseModel):
     current_persona: Optional[str] = Field(None, description="Current persona")
 
 
+class ConversationMessage(BaseModel):
+    """A single message in the conversation history."""
+    id: Optional[str] = Field(None, description="Message ID")
+    role: str = Field(..., description="Message role (user, assistant, etc.)")
+    content: str = Field(..., description="Message content")
+    created_at: Optional[str] = Field(None, description="Message creation timestamp")
+    message_type: Optional[str] = Field(None, description="Type of message")
+
+
+class ConversationHistoryResponse(BaseModel):
+    """Response model for conversation history."""
+    messages: List[ConversationMessage] = Field(..., description="List of messages")
+    total: int = Field(..., description="Total number of messages")
+    agent_id: Optional[str] = Field(None, description="Agent ID used for this conversation")
+    group_id: Optional[str] = Field(None, description="Group/conversation ID if filtered")
+
+
 # API Endpoints
 
 @app.get("/", tags=["Root"])
@@ -142,9 +159,39 @@ async def health_check():
     )
 
 
+@app.get("/api/agent/id", tags=["Agent"])
+async def get_agent_id():
+    """Get the current agent ID.
+    
+    The agent_id is the main identifier for fetching conversation history.
+    Each agent maintains its own conversation history.
+    """
+    if not chat_app:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat application not initialized"
+        )
+    
+    if not chat_app.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No agent initialized. Please set a persona first."
+        )
+    
+    return {
+        "agent_id": chat_app.agent_id,
+        "current_persona": chat_app.current_persona
+    }
+
+
 @app.post("/api/chat", response_model=ChatMessageResponse, tags=["Chat"])
 async def send_message(request: ChatMessageRequest):
-    """Send a chat message and get a response."""
+    """Send a chat message and get a response.
+    
+    The conversation_id is the main identifier for conversations.
+    If provided, it will be used to maintain conversation context.
+    Letta uses group_id internally, which is returned in the response.
+    """
     if not chat_app:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -159,14 +206,22 @@ async def send_message(request: ChatMessageRequest):
     
     try:
         # Send message to chat application
-        response_content = chat_app.chat(request.message)
+        # conversation_id can be used as group_id for Letta
+        response_content, group_id = chat_app.chat(
+            request.message,
+            conversation_id=request.conversation_id,
+            group_id=request.conversation_id  # Use conversation_id as group_id
+        )
+        
+        # Use group_id as conversation_id if returned, otherwise use request's conversation_id
+        final_conversation_id = group_id or request.conversation_id
         
         # Create response message
         response = ChatMessageResponse(
             id=str(uuid.uuid4()),
             role="assistant",
             content=response_content,
-            conversation_id=request.conversation_id,
+            conversation_id=final_conversation_id,
         )
         
         return response
@@ -289,6 +344,145 @@ async def get_memory():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving memory: {str(e)}"
+        )
+
+
+@app.get("/api/conversation/history", response_model=ConversationHistoryResponse, tags=["Conversation"])
+async def get_conversation_history(conversation_id: Optional[str] = None, limit: Optional[int] = None, order: str = "desc", group_id: Optional[str] = None):
+    """Get conversation history for a specific conversation.
+    
+    Args:
+        conversation_id: Conversation ID (primary identifier for the conversation)
+        limit: Maximum number of messages to retrieve (default: all)
+        order: Order of messages ('asc' for oldest first, 'desc' for newest first)
+        group_id: Optional group ID (Letta's internal conversation identifier, takes precedence over conversation_id)
+    
+    Note:
+        - conversation_id is the main identifier you should use
+        - Letta uses group_id internally, which maps to conversation_id
+        - If conversation_id is provided, it will be used to fetch that specific conversation
+    """
+    if not chat_app:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat application not initialized"
+        )
+    
+    if not chat_app.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No agent initialized. Please set a persona first."
+        )
+    
+    if order not in ["asc", "desc"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order must be 'asc' or 'desc'"
+        )
+    
+    try:
+        messages = chat_app.get_conversation_history(
+            conversation_id=conversation_id,
+            limit=limit,
+            order=order,
+            group_id=group_id
+        )
+        
+        # Convert Letta message objects to our response format
+        result_messages = []
+        for msg in messages:
+            # Try to get message data as dict
+            try:
+                if hasattr(msg, 'model_dump'):
+                    msg_dict = msg.model_dump()
+                elif hasattr(msg, 'dict'):
+                    msg_dict = msg.dict()
+                else:
+                    msg_dict = {}
+            except Exception:
+                msg_dict = {}
+            
+            # Determine role from message_type or class name
+            msg_class_name = type(msg).__name__.lower()
+            message_type = msg_dict.get('message_type', '')
+            if not message_type:
+                message_type = getattr(msg, 'message_type', None) or ''
+            
+            role = "user"
+            if 'user' in message_type.lower() or 'user' in msg_class_name or 'input' in msg_class_name:
+                role = "user"
+            elif 'assistant' in message_type.lower() or 'assistant' in msg_class_name:
+                role = "assistant"
+            elif 'system' in message_type.lower() or 'system' in msg_class_name:
+                role = "system"
+            elif 'reasoning' in message_type.lower() or 'reasoning' in msg_class_name:
+                # Skip reasoning messages - they're internal to the agent
+                continue
+            
+            # Extract content - try dict first, then attributes
+            content = ""
+            if 'content' in msg_dict and msg_dict['content']:
+                content = str(msg_dict['content'])
+            elif hasattr(msg, 'content'):
+                content_val = getattr(msg, 'content', None)
+                if content_val:
+                    content = str(content_val)
+            elif 'text' in msg_dict and msg_dict['text']:
+                content = str(msg_dict['text'])
+            elif hasattr(msg, 'text'):
+                content_val = getattr(msg, 'text', None)
+                if content_val:
+                    content = str(content_val)
+            elif 'input' in msg_dict and msg_dict['input']:
+                content = str(msg_dict['input'])
+            elif hasattr(msg, 'input'):
+                content_val = getattr(msg, 'input', None)
+                if content_val:
+                    content = str(content_val)
+            
+            # Skip messages without content (except system messages)
+            if not content and role != "system":
+                continue
+            
+            # Extract timestamp
+            created_at = None
+            if 'date' in msg_dict and msg_dict['date']:
+                created_at = str(msg_dict['date'])
+            elif hasattr(msg, 'date'):
+                date_val = getattr(msg, 'date', None)
+                if date_val:
+                    created_at = str(date_val)
+            elif 'created_at' in msg_dict and msg_dict['created_at']:
+                created_at = str(msg_dict['created_at'])
+            elif hasattr(msg, 'created_at'):
+                created_at_val = getattr(msg, 'created_at', None)
+                if created_at_val:
+                    created_at = str(created_at_val)
+            
+            # Extract message ID
+            msg_id = msg_dict.get('id') or getattr(msg, 'id', None)
+            
+            # Use message_type from dict or class name
+            final_message_type = message_type or msg_class_name
+            
+            result_messages.append(ConversationMessage(
+                id=str(msg_id) if msg_id else None,
+                role=role,
+                content=content,
+                created_at=created_at,
+                message_type=final_message_type
+            ))
+        
+        return ConversationHistoryResponse(
+            messages=result_messages,
+            total=len(result_messages),
+            agent_id=chat_app.agent_id,
+            group_id=group_id or conversation_id
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving conversation history: {str(e)}"
         )
 
 

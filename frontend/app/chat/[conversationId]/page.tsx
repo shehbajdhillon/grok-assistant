@@ -5,58 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { ChatHeader, MessageList, ChatInput } from '@/components/chat';
 import { useConversation } from '@/hooks/use-conversations';
 import { useTTS } from '@/hooks/use-tts';
-import { getAssistant, deleteConversation } from '@/lib/mock-data';
+import { apiClient } from '@/lib/api';
+import { getAssistant } from '@/lib/mock-data';
 
-// Simulated AI responses based on assistant personality
-const generateResponse = (personality: string, userMessage: string): string => {
-  // This is a mock - in production, this would call your AI API
-  const responses: Record<string, string[]> = {
-    professional: [
-      "I understand your point. Let me provide a structured approach to this...",
-      "That's an excellent question. Here's what I'd recommend...",
-      "Based on what you've shared, I think the best course of action would be...",
-    ],
-    empathetic: [
-      "I hear you, and I want you to know that your feelings are valid...",
-      "Thank you for sharing that with me. It takes courage to open up...",
-      "I'm here for you. Let's explore this together at your own pace...",
-    ],
-    motivational: [
-      "THAT'S what I'm talking about, champ! Let's get after it!",
-      "No excuses, warrior! You've got this - time to push through!",
-      "Remember why you started! Every rep counts, every step matters!",
-    ],
-    friendly: [
-      "Oh, that's interesting! Here's what I think might help...",
-      "Great question! Let me break this down in a simple way...",
-      "I love your curiosity! Here's the fun part about this...",
-    ],
-    mysterious: [
-      "Ah, your question drifts through the shadows of understanding...",
-      "In the dim corridors of knowledge, a truth awaits...",
-      "The answer, like smoke, curls through the darkness...",
-    ],
-    humorous: [
-      "OH BOY, you've come to the right AI for this one! *cracks virtual knuckles*",
-      "Buckle up buttercup, because this is gonna be FUN!!!",
-      "Okay okay okay, let me channel my inner genius here... *dramatic pause*",
-    ],
-    casual: [
-      "Yeah totally! So here's the deal...",
-      "Oh for sure, let me break it down real quick...",
-      "Gotcha! Here's what I'm thinking...",
-    ],
-    formal: [
-      "I appreciate your inquiry. Please allow me to elaborate...",
-      "Your question merits careful consideration. I shall address it thusly...",
-      "Indeed, this is a matter worthy of detailed examination...",
-    ],
-  };
-
-  const toneResponses = responses[personality] || responses.friendly;
-  const randomResponse = toneResponses[Math.floor(Math.random() * toneResponses.length)];
-
-  return `${randomResponse}\n\nRegarding "${userMessage.slice(0, 50)}${userMessage.length > 50 ? '...' : ''}" - I'm here to help you explore this further. What specific aspect would you like to dive deeper into?`;
+// Map persona keys to assistant IDs (temporary until we sync personas with assistants)
+const PERSONA_TO_ASSISTANT: Record<string, string> = {
+  personal_assistant: '1',
+  dating_coach: '2',
+  friend: '3',
 };
 
 export default function ChatPage() {
@@ -64,50 +20,79 @@ export default function ChatPage() {
   const router = useRouter();
   const conversationId = params.conversationId as string;
 
-  const { conversation, messages, sendMessage, refresh } = useConversation(conversationId);
+  // Redirect if conversationId is undefined or invalid
+  useEffect(() => {
+    if (!conversationId || conversationId === 'undefined') {
+      console.error('Invalid conversationId:', conversationId);
+      router.push('/');
+    }
+  }, [conversationId, router]);
+
+  const { conversation, messages, sendMessage, refresh, isLoading: conversationLoading, error } = useConversation(
+    conversationId && conversationId !== 'undefined' ? conversationId : null
+  );
   const { speak, stop, isPlaying } = useTTS();
 
   const [isLoading, setIsLoading] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [currentPersona, setCurrentPersona] = useState<any>(null);
 
-  const assistant = conversation ? getAssistant(conversation.assistantId) : null;
-
-  // Redirect if conversation not found
+  // Get current persona (with error handling)
   useEffect(() => {
-    if (!conversation) {
-      router.push('/');
+    apiClient.getCurrentPersona()
+      .then(setCurrentPersona)
+      .catch((err) => {
+        console.warn('Could not get current persona:', err);
+        // Set default persona if API fails
+        setCurrentPersona({ key: 'personal_assistant', name: 'Personal Assistant', description: '', is_current: true });
+      });
+  }, []);
+
+  // Determine assistant ID from conversation or current persona
+  // If conversation has assistantId, use it; otherwise use persona mapping
+  const assistantId = conversation?.assistantId || 
+    (currentPersona && currentPersona.key ? PERSONA_TO_ASSISTANT[currentPersona.key] : '1'); // Default to '1' (personal_assistant)
+  const assistant = assistantId ? getAssistant(assistantId) : getAssistant('1'); // Fallback to assistant '1'
+  
+  // Ensure we always have an assistant (use default if needed)
+  const finalAssistant = assistant || getAssistant('1');
+
+  // Redirect if conversation not found after loading
+  useEffect(() => {
+    if (!conversationLoading && !conversation && conversationId) {
+      // Conversation doesn't exist, but we can still chat - create it implicitly
+      // Or redirect to home
+      // router.push('/');
     }
-  }, [conversation, router]);
+  }, [conversation, conversationLoading, conversationId, router]);
 
   const handleSendMessage = useCallback(async (content: string) => {
-    if (!assistant || !conversation) return;
+    if (!conversationId) return;
 
-    // Add user message
-    sendMessage(content, 'user');
     setIsLoading(true);
-
-    // Simulate AI response delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1500));
-
-    // Generate and add AI response
-    const response = generateResponse(assistant.tone, content);
-    const assistantMessage = sendMessage(response, 'assistant');
-
-    setIsLoading(false);
-
-    // Auto-play voice if enabled
-    if (voiceEnabled && assistantMessage) {
-      setPlayingMessageId(assistantMessage.id);
-      speak(response, assistant.voiceSettings);
+    try {
+      // Send message via API (this handles both user and assistant messages)
+      const assistantMessage = await sendMessage(content, 'user');
+      
+      // Auto-play voice if enabled
+      if (voiceEnabled && assistantMessage && finalAssistant) {
+        setPlayingMessageId(assistantMessage.id);
+        speak(assistantMessage.content, finalAssistant.voiceSettings);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // TODO: Show error toast/notification
+    } finally {
+      setIsLoading(false);
     }
-  }, [assistant, conversation, sendMessage, voiceEnabled, speak]);
+  }, [conversationId, sendMessage, voiceEnabled, finalAssistant, speak]);
 
   const handlePlayAudio = useCallback((messageId: string, content: string) => {
-    if (!assistant) return;
+    if (!finalAssistant) return;
     setPlayingMessageId(messageId);
-    speak(content, assistant.voiceSettings);
-  }, [assistant, speak]);
+    speak(content, finalAssistant.voiceSettings);
+  }, [finalAssistant, speak]);
 
   const handleStopAudio = useCallback(() => {
     stop();
@@ -122,20 +107,58 @@ export default function ChatPage() {
   }, [isPlaying]);
 
   const handleDeleteChat = useCallback(() => {
-    if (conversation) {
-      deleteConversation(conversation.id);
-      router.push('/');
-    }
-  }, [conversation, router]);
+    // TODO: Implement delete conversation endpoint in backend
+    router.push('/');
+  }, [router]);
 
-  if (!conversation || !assistant) {
-    return null;
+  // Show loading state
+  if (conversationLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg">Loading conversation...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-red-500">Error: {error}</div>
+          <button
+            onClick={() => refresh()}
+            className="mt-4 rounded bg-blue-500 px-4 py-2 text-white"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!finalAssistant) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-red-500">Error: Could not load assistant</div>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-4 rounded bg-blue-500 px-4 py-2 text-white"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen flex-col bg-background">
       <ChatHeader
-        assistant={assistant}
+        assistant={finalAssistant}
         voiceEnabled={voiceEnabled}
         onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
         onDeleteChat={handleDeleteChat}
@@ -143,7 +166,7 @@ export default function ChatPage() {
 
       <MessageList
         messages={messages}
-        assistant={assistant}
+        assistant={finalAssistant}
         playingMessageId={playingMessageId}
         onPlayAudio={handlePlayAudio}
         onStopAudio={handleStopAudio}
@@ -152,7 +175,7 @@ export default function ChatPage() {
       <ChatInput
         onSend={handleSendMessage}
         disabled={isLoading}
-        placeholder={`Message ${assistant.name}...`}
+        placeholder={`Message ${finalAssistant.name}...`}
       />
     </div>
   );

@@ -36,6 +36,8 @@ class ChatApplication:
         self.model = model
         self.agent_id: Optional[str] = None
         self.current_persona: Optional[str] = None
+        # Map conversation_id -> agent_id for managing multiple conversations
+        self._conversation_agents: dict[str, str] = {}
         
     def set_persona(self, persona_key: str) -> bool:
         """Set the active persona for the agent.
@@ -55,7 +57,10 @@ class ChatApplication:
         # Create agent with memory block for the persona, or update existing one
         if not self.agent_id:
             # Create agent with optional model specification
-            create_params = {"name": f"chat_agent_{persona_key}"}
+            create_params = {
+                "name": f"chat_agent_{persona_key}",
+                "system": instructions  # Set system prompt directly
+            }
             if self.model:
                 # Handle different model formats
                 model_str = self.model
@@ -98,7 +103,8 @@ class ChatApplication:
             
             agent = self.client.agents.create(**create_params)
             self.agent_id = agent.id
-            # Create memory block for the persona and attach to agent
+            # Also create memory block for the persona (for reference/backup)
+            # The system prompt is already set above, but memory blocks can provide additional context
             block = self.client.blocks.create(
                 label="persona",
                 value=instructions,
@@ -134,25 +140,53 @@ class ChatApplication:
         self.current_persona = persona_key
         return True
     
-    def chat(self, user_input: str) -> str:
+    def chat(self, user_input: str, conversation_id: Optional[str] = None, group_id: Optional[str] = None) -> tuple[str, Optional[str]]:
         """Process user input and generate a response.
         
         Args:
             user_input: The user's message
+            conversation_id: Optional conversation ID to maintain conversation context
+            group_id: Optional group ID for Letta (if None, Letta will create a new group)
             
         Returns:
-            The agent's response
+            Tuple of (response_text, group_id) - group_id can be used as conversation_id for future messages
         """
-        if not self.agent_id:
-            return "Please select a persona first using 'set_persona <persona_name>'"
+        # Use conversation-specific agent if conversation_id provided
+        agent_id = self.agent_id
+        if conversation_id and conversation_id in self._conversation_agents:
+            agent_id = self._conversation_agents[conversation_id]
+        elif not agent_id:
+            return ("Please select a persona first using 'set_persona <persona_name>'", None)
         
         try:
+            # Note: group_id is not a parameter for messages.create()
+            # It's used for filtering when listing messages, not when creating them
             response = self.client.agents.messages.create(
-                agent_id=self.agent_id,
+                agent_id=agent_id,
                 input=user_input
             )
+            
+            # Extract group_id from response if available
+            response_group_id = group_id
+            if hasattr(response, 'group_id') and response.group_id:
+                response_group_id = response.group_id
+            elif hasattr(response, 'messages') and response.messages:
+                # Try to get group_id from first message
+                for msg in response.messages:
+                    try:
+                        if hasattr(msg, 'model_dump'):
+                            msg_dict = msg.model_dump()
+                        elif hasattr(msg, 'dict'):
+                            msg_dict = msg.dict()
+                        else:
+                            msg_dict = {}
+                        if 'group_id' in msg_dict and msg_dict['group_id']:
+                            response_group_id = msg_dict['group_id']
+                            break
+                    except:
+                        pass
         except Exception as e:
-            return f"Error communicating with Letta: {str(e)}"
+            return (f"Error communicating with Letta: {str(e)}", None)
         
         # Extract the response content from the Letta response
         # The response is a LettaResponse object with messages array
@@ -167,31 +201,31 @@ class ChatApplication:
                         # Get content from assistant message
                         content = getattr(msg, 'content', None)
                         if content:
-                            return str(content)
+                            return (str(content), response_group_id)
                         # Fallback to other content fields
                         text = getattr(msg, 'text', None)
                         if text:
-                            return str(text)
+                            return (str(text), response_group_id)
                         message = getattr(msg, 'message', None)
                         if message:
-                            return str(message)
+                            return (str(message), response_group_id)
                 
                 # If no assistant_message found, try any message with content
                 for msg in reversed(response.messages):
                     content = getattr(msg, 'content', None)
                     if content:
-                        return str(content)
+                        return (str(content), response_group_id)
             
             # Check for direct content fields on response object
             content = getattr(response, 'content', None)
             if content:
-                return str(content)
+                return (str(content), response_group_id)
             
             # Last resort: return string representation (shouldn't happen)
-            return f"[Unable to extract response. Response type: {type(response).__name__}]"
+            return (f"[Unable to extract response. Response type: {type(response).__name__}]", response_group_id)
             
         except Exception as e:
-            return f"Error processing response: {str(e)}"
+            return (f"Error processing response: {str(e)}", response_group_id)
     
     def get_memory_blocks(self) -> list:
         """Retrieve agent's memory blocks.
@@ -207,6 +241,66 @@ class ChatApplication:
             return memory_blocks
         except Exception:
             return []
+    
+    def get_conversation_history(self, conversation_id: Optional[str] = None, limit: Optional[int] = None, order: str = "desc", group_id: Optional[str] = None) -> list:
+        """Retrieve conversation history for a specific conversation.
+        
+        Args:
+            conversation_id: Conversation ID (uses group_id if provided, otherwise uses default agent)
+            limit: Maximum number of messages to retrieve (None for all)
+            order: Order of messages ('asc' for oldest first, 'desc' for newest first)
+            group_id: Optional group/conversation ID to filter messages (takes precedence over conversation_id)
+            
+        Returns:
+            List of message objects from Letta
+            
+        Note:
+            - Conversations are identified by group_id (Letta's conversation identifier)
+            - If conversation_id is provided, it maps to a group_id internally
+            - The agent_id is managed automatically based on the persona
+        """
+        # Determine which agent to use
+        agent_id = self.agent_id
+        if conversation_id and conversation_id in self._conversation_agents:
+            agent_id = self._conversation_agents[conversation_id]
+        
+        if not agent_id:
+            return []
+        
+        # Note: group_id in Letta's messages.list() is for multi-agent groups, not conversation threads
+        # For now, we'll get all messages for the agent
+        # Conversation filtering by conversation_id can be implemented client-side if needed
+        try:
+            params = {
+                "agent_id": agent_id,
+                "order": order,
+                "order_by": "created_at",
+            }
+            if limit:
+                params["limit"] = limit
+            # group_id is for multi-agent coordination, not conversation filtering
+            # We get all messages and can filter by run_id or other criteria if needed
+            
+            messages_page = self.client.agents.messages.list(**params)
+            
+            # Extract messages from the page object
+            if hasattr(messages_page, 'data'):
+                return messages_page.data
+            elif hasattr(messages_page, '__iter__'):
+                return list(messages_page)
+            else:
+                return []
+        except Exception as e:
+            print(f"Error retrieving conversation history: {e}")
+            return []
+    
+    def get_agent_id(self) -> Optional[str]:
+        """Get the current agent ID.
+        
+        Returns:
+            The agent ID if an agent is initialized, None otherwise
+        """
+        return self.agent_id
     
     def display_memory(self):
         """Display current memory blocks."""
@@ -309,9 +403,9 @@ def main():
                 continue
             
             # Process regular chat input
-            response = app.chat(user_input)
+            response_content, _ = app.chat(user_input)
             persona_name = PERSONAS[app.current_persona]['name'] if app.current_persona else "Assistant"
-            print(f"{persona_name}: {response}\n")
+            print(f"{persona_name}: {response_content}\n")
             
         except KeyboardInterrupt:
             print("\n\nGoodbye! Thanks for chatting!")

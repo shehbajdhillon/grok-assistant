@@ -1,6 +1,6 @@
 # Grok Assistant
 
-A simple chat application built with Python that uses Letta for agent loops and memory management. The application supports multiple personas (personal assistant, dating coach, friend, etc.) and remembers conversations across sessions.
+A chat application built with Python (FastAPI backend) and Next.js (frontend) that uses Letta for agent loops and memory management. The application supports multiple personas (personal assistant, dating coach, friend, etc.) and remembers conversations across sessions.
 
 ## Features
 
@@ -8,25 +8,31 @@ A simple chat application built with Python that uses Letta for agent loops and 
 - 🧠 **Memory Management**: Automatic conversation summarization and context retention
 - 👤 **Multiple Personas**: Switch between different AI personas (personal assistant, dating coach, friend)
 - 💬 **Conversation Memory**: Remembers past interactions and maintains context
-- 🔌 **Extensible**: Designed to be easily extended to a web application
+- 🌐 **Web Interface**: Modern Next.js frontend with FastAPI backend
+- 🔌 **REST API**: Full REST API for integration and extensibility
 
 ## Prerequisites
 
 - Python 3.12 or higher
 - [uv](https://github.com/astral-sh/uv) (fast Python package installer)
+- Node.js 18+ and npm (for frontend)
 - Docker (for running Letta server)
 - Ollama (for free embeddings)
 - xAI API key (for Grok models)
 
 ## Installation
 
-1. Clone the repository:
+### 1. Clone the Repository
+
 ```bash
 git clone <your-repo-url>
 cd grok-assistant
 ```
 
-2. Create a virtual environment and install dependencies:
+### 2. Backend Setup
+
+**a. Create virtual environment and install dependencies:**
+
 ```bash
 # Using uv sync (recommended - automatically creates venv and installs dependencies)
 uv sync
@@ -34,77 +40,103 @@ uv sync
 # Or manually:
 uv venv --python 3.12
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt
+uv pip install -r backend/requirements.txt
 ```
 
-3. Set up environment variables in `.env` file:
-   ```bash
-   # Create a .env file in the project root
-   cp .env.example .env
-   # Then edit .env with your configuration (see below)
-   ```
+**b. Set up environment variables:**
 
-4. **Set up the self-hosted Letta server** (required):
+Create a `.env` file in the project root:
 
-   This application uses a **self-hosted Letta server** with xAI/Grok models and free Ollama embeddings.
+```bash
+# Letta server URL (defaults to localhost:8283)
+LETTA_API_URL=http://localhost:8283
 
-   **a. Install and start Ollama** (for free embeddings):
-   ```bash
-   # Install Ollama (macOS)
-   brew install ollama
-   
-   # Start Ollama service
-   brew services start ollama
-   
-   # Pull an embedding model
-   ollama pull all-minilm
-   ```
+# Model configuration
+LETTA_MODEL=xai/grok-3-mini
+XAI_API_KEY=your_xai_api_key_here
 
-   **b. Start the Letta server with Docker:**
-   ```bash
-   # If a container already exists, stop and remove it first:
-   docker stop letta-server 2>/dev/null && docker rm letta-server 2>/dev/null
-   
-   # Start the Letta server
-   docker run -d --name letta-server \
-     -v ~/.letta/.persist/pgdata:/var/lib/postgresql/data \
-     -p 8283:8283 \
-     -e XAI_API_KEY=your_xai_api_key_here \
-     -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-     letta/letta:latest
-   ```
-   
-   **Note:** If you need to restart the server later:
-   ```bash
-   docker restart letta-server
-   ```
+# Ollama configuration (for free embeddings)
+OLLAMA_API_URL=http://localhost:11434
+LETTA_OLLAMA_EMBEDDING_MODEL=all-minilm
 
-   **c. Configure your `.env` file:**
-   ```bash
-   # Letta server URL (defaults to localhost:8283)
-   LETTA_API_URL=http://localhost:8283
-   
-   # Model configuration
-   LETTA_MODEL=xai/grok-3-mini
-   XAI_API_KEY=your_xai_api_key_here
-   
-   # Ollama configuration (for free embeddings)
-   OLLAMA_API_URL=http://localhost:11434
-   LETTA_OLLAMA_EMBEDDING_MODEL=all-minilm
-   ```
+# API server port (optional, defaults to 8000)
+API_PORT=8000
+```
 
-**Available Models:**
-- `xai/grok-3-mini` - Fast and cost-effective (recommended)
-- `xai/grok-2-1212` - Latest full model
-- Other xAI/Grok models supported by Letta
+**c. Install and start Ollama (for free embeddings):**
 
-The application will automatically use the model specified in `LETTA_MODEL` when creating agents. You'll see a message showing which model is being used when you start the app.
+```bash
+# Install Ollama (macOS)
+brew install ollama
 
-## Usage
+# Start Ollama service
+brew services start ollama
 
-### CLI Application
+# Pull an embedding model
+ollama pull all-minilm
+```
 
-Run the chat application:
+**d. Start the Letta server with Docker:**
+
+```bash
+# If a container already exists, stop and remove it first:
+docker stop letta-server 2>/dev/null && docker rm letta-server 2>/dev/null
+
+# Start the Letta server
+docker run -d --name letta-server \
+  -v ~/.letta/.persist/pgdata:/var/lib/postgresql/data \
+  -p 8283:8283 \
+  -e XAI_API_KEY=your_xai_api_key_here \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  letta/letta:latest
+```
+
+**Note:** To restart the server later:
+```bash
+docker restart letta-server
+```
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+**Optional:** Create `frontend/.env.local` to customize API URL:
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+## Running the Application
+
+### Quick Start (Full Stack)
+
+You need **two terminal windows**:
+
+**Terminal 1 - Backend:**
+```bash
+cd /path/to/grok-assistant
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python backend/run_server.py
+```
+
+The backend will start on `http://localhost:8000` with API docs at `http://localhost:8000/docs`.
+
+**Terminal 2 - Frontend:**
+```bash
+cd /path/to/grok-assistant/frontend
+npm run dev
+```
+
+The frontend will start on `http://localhost:3000`.
+
+**Open your browser:** Navigate to `http://localhost:3000` to use the application.
+
+### CLI Application (Backend Only)
+
+You can also run the backend as a CLI application:
+
 ```bash
 # From the project root
 python -m backend.chat_app
@@ -114,8 +146,7 @@ cd backend
 python chat_app.py
 ```
 
-### Available Commands
-
+**Available Commands:**
 - **Regular chat**: Just type your message and press Enter
 - **`set_persona <name>`**: Switch to a different persona
   - Available personas: `personal_assistant`, `dating_coach`, `friend`
@@ -123,56 +154,20 @@ python chat_app.py
 - **`personas`**: List all available personas
 - **`exit`** or **`quit`**: Exit the application
 
-### Example Session
+## API Documentation
 
-```
-Welcome to the Chat Application!
-============================================================
+The FastAPI backend provides REST API endpoints for frontend integration and external use.
 
-Available personas:
-  - personal_assistant: A helpful personal assistant...
-  - dating_coach: An empathetic dating coach...
-  - friend: A casual, friendly companion...
+### Base URL
+- **Development**: `http://localhost:8000`
+- **Interactive Docs**: `http://localhost:8000/docs`
 
-Default persona set to: Personal Assistant
+### Endpoints
 
-You: Hello!
-Personal Assistant: Hello! How can I help you today?
-
-You: set_persona dating_coach
-✓ Persona switched to: Dating Coach
-  An empathetic dating coach offering advice...
-
-You: I'm nervous about a first date
-Dating Coach: That's completely normal! First dates can be nerve-wracking...
-
-You: memory
---- Conversation Memory ---
-- User mentioned being nervous about first date
-```
-
-### FastAPI Backend
-
-The application includes a FastAPI backend that provides REST API endpoints for frontend integration.
-
-#### Starting the API Server
-
-```bash
-# From the project root
-python backend/run_server.py
-
-# Or using uvicorn directly
-uvicorn backend.api:app --reload --port 8000
-```
-
-The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
-
-#### API Endpoints
-
-**Health Check**
+#### Health Check
 - `GET /health` - Check server status and configuration
 
-**Personas**
+#### Personas
 - `GET /api/personas` - Get all available personas
 - `GET /api/personas/current` - Get the current active persona
 - `POST /api/personas/set` - Set the active persona
@@ -182,28 +177,30 @@ The API will be available at `http://localhost:8000` with interactive docs at `h
   }
   ```
 
-**Chat**
+#### Chat
 - `POST /api/chat` - Send a chat message and get a response
   ```json
   {
     "message": "Hello! How are you?",
-    "conversation_id": "optional-conversation-id"
+    "conversation_id": "conv-123"
   }
   ```
+  - `conversation_id`: **Required** - Identifies which conversation this message belongs to
 
-**Memory**
+#### Conversation History
+- `GET /api/conversation/history` - Get conversation history for a specific conversation
+  - Query parameters:
+    - `conversation_id` (required): The conversation ID to fetch history for
+    - `limit` (optional): Maximum number of messages to retrieve
+    - `order` (optional): `'asc'` for oldest first, `'desc'` for newest first (default: `'desc'`)
+
+#### Memory
 - `GET /api/memory` - Get the agent's memory blocks
 
-#### Testing the API
+#### Agent Information
+- `GET /api/agent/id` - Get the current agent ID (for debugging)
 
-A test script is included to verify the API endpoints:
-
-```bash
-# Make sure the server is running first, then:
-python backend/test_api.py
-```
-
-Or test manually with curl:
+### Example API Calls
 
 ```bash
 # Health check
@@ -215,45 +212,48 @@ curl http://localhost:8000/api/personas
 # Send a chat message
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello!"}'
+  -d '{"message": "Hello!", "conversation_id": "conv-123"}'
+
+# Get conversation history
+curl "http://localhost:8000/api/conversation/history?conversation_id=conv-123&limit=10&order=desc"
 ```
 
-#### CORS Configuration
+## Understanding IDs and Architecture
 
-The API is configured to accept requests from:
-- `http://localhost:3000` (Next.js default)
-- `http://localhost:3001`
-- `http://127.0.0.1:3000`
-- `http://127.0.0.1:3001`
+### Conversation ID (`conversation_id`)
+- **Primary identifier** - Use this to identify and fetch conversations
+- Each conversation has a unique `conversation_id` (you provide this, e.g., `conv-123` or UUID)
+- Pass `conversation_id` when sending messages to maintain conversation context
+- Use `conversation_id` to fetch messages from a specific conversation
 
-To add more origins, edit `backend/api.py` and update the `allow_origins` list in the CORS middleware configuration.
-- Discussed strategies for managing first-date anxiety
---- End Memory ---
+### Agent ID (`agent_id`)
+- **Shared across conversations** - One agent per persona, not per conversation
+- Created when you set a persona (e.g., one agent for "personal_assistant")
+- **All conversations with the same persona share the same agent**
+- Used internally by Letta - you don't need separate agents for each conversation
+- Conversations are separated by `conversation_id`/`group_id`, not by `agent_id`
+
+**Example:**
+```
+Persona: "personal_assistant"
+  └── Agent ID: agent-xxx (ONE agent)
+      ├── Conversation 1 (conv-123) → Messages filtered by group_id
+      ├── Conversation 2 (conv-456) → Messages filtered by group_id
+      └── Conversation 3 (conv-789) → Messages filtered by group_id
 ```
 
-## Project Structure
+### Group ID (`group_id`)
+- **Letta's internal parameter** - Used for filtering messages in Letta's API
+- You typically don't need to use `group_id` directly - just use `conversation_id` and the backend handles the mapping
+- The backend maps your `conversation_id` to Letta's `group_id` when fetching history
 
-```
-grok-assistant/
-├── backend/
-│   ├── __init__.py          # Backend package initialization
-│   ├── chat_app.py          # Main chat application with CLI interface
-│   ├── personas.py          # Persona configurations and management
-│   ├── api.py               # FastAPI REST API server
-│   ├── run_server.py        # Script to run the FastAPI server
-│   ├── test_api.py          # API endpoint test script
-│   ├── requirements.txt      # Python dependencies
-│   ├── pyproject.toml       # Project configuration (for uv)
-│   ├── uv.lock              # Dependency lock file
-│   ├── setup_ollama.sh      # Ollama setup script
-│   └── .env.example         # Environment variables template
-├── frontend/                # Next.js frontend application
-├── .env                     # Environment variables (not in git)
-├── .gitignore              # Git ignore rules
-└── README.md               # This file
-```
+## Available Models
 
-The `backend/` folder contains all the Python backend code, including the FastAPI REST API. The `frontend/` folder contains the Next.js web application.
+- `xai/grok-3-mini` - Fast and cost-effective (recommended)
+- `xai/grok-2-1212` - Latest full model
+- Other xAI/Grok models supported by Letta
+
+The application will automatically use the model specified in `LETTA_MODEL` when creating agents.
 
 ## Personas
 
@@ -266,38 +266,101 @@ An empathetic coach offering advice on dating and relationships.
 ### Friend
 A casual, friendly companion for everyday conversation.
 
-## Extending to a Web Application
+## Project Structure
 
-The application is designed to be easily extended to a web interface. The backend code is in the `backend/` folder, so you can add your web app code in the root directory.
-
-Here's an example using Flask:
-
-```python
-from backend.chat_app import ChatApplication
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-chat_app = ChatApplication()
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.json
-    user_input = data.get('message')
-    persona = data.get('persona')
-    
-    if persona:
-        chat_app.set_persona(persona)
-    
-    response = chat_app.chat(user_input)
-    return jsonify({"response": response, "persona": chat_app.current_persona})
-
-@app.route('/personas', methods=['GET'])
-def get_personas():
-    from backend.personas import PERSONAS
-    return jsonify({"personas": PERSONAS})
+```
+grok-assistant/
+├── backend/
+│   ├── __init__.py          # Backend package initialization
+│   ├── chat_app.py          # Main chat application with CLI interface
+│   ├── personas.py          # Persona configurations and management
+│   ├── api.py               # FastAPI REST API server
+│   ├── run_server.py        # Script to run the FastAPI server
+│   ├── requirements.txt    # Python dependencies
+│   ├── AGENT_ARCHITECTURE.md # Agent architecture documentation
+│   └── .env.example         # Environment variables template
+├── frontend/                # Next.js frontend application
+│   ├── app/                 # Next.js app directory
+│   ├── components/          # React components
+│   ├── hooks/               # React hooks
+│   ├── lib/                 # Utilities and API client
+│   └── types/               # TypeScript type definitions
+├── .env                     # Environment variables (not in git)
+├── .gitignore              # Git ignore rules
+└── README.md               # This file
 ```
 
-For a more complete example, check out the [Letta Chatbot Example](https://github.com/letta-ai/letta-chatbot-example).
+## Troubleshooting
+
+### Backend Issues
+
+**Backend won't start:**
+- Check if Letta server is running: `docker ps | grep letta`
+- Check if port 8000 is available: `lsof -i :8000`
+- Verify `.env` file exists and has correct values
+- Check backend logs for errors
+
+**Letta connection errors:**
+- Verify Letta server is running: `docker ps | grep letta`
+- Check `LETTA_API_URL` in `.env` matches your Docker container port
+- Restart Letta server: `docker restart letta-server`
+
+**Embedding model errors:**
+- Ensure Ollama is running: `brew services list | grep ollama`
+- Verify embedding model is pulled: `ollama list | grep all-minilm`
+- Check `OLLAMA_API_URL` and `LETTA_OLLAMA_EMBEDDING_MODEL` in `.env`
+
+### Frontend Issues
+
+**Frontend won't start:**
+- Run `npm install` in the frontend directory
+- Check if port 3000 is available: `lsof -i :3000`
+- Check Node.js version: `node --version` (should be 18+)
+
+**Frontend can't connect to backend:**
+- Verify backend is running: `curl http://localhost:8000/health`
+- Check CORS settings in `backend/api.py`
+- Verify `NEXT_PUBLIC_API_URL` in `frontend/.env.local` (if set)
+- Check browser console for detailed error messages
+
+**"Setting up assistant" stuck:**
+- Check browser console for errors
+- Verify backend is running and accessible
+- Check that persona API endpoint is working: `curl http://localhost:8000/api/personas/current`
+
+### General Issues
+
+**Port already in use:**
+```bash
+# Find and kill process on port 8000 (backend)
+lsof -ti:8000 | xargs kill -9
+
+# Find and kill process on port 3000 (frontend)
+lsof -ti:3000 | xargs kill -9
+```
+
+**Docker container issues:**
+```bash
+# Stop and remove container
+docker stop letta-server
+docker rm letta-server
+
+# View logs
+docker logs letta-server
+
+# Restart container
+docker restart letta-server
+```
+
+## CORS Configuration
+
+The API is configured to accept requests from:
+- `http://localhost:3000` (Next.js default)
+- `http://localhost:3001`
+- `http://127.0.0.1:3000`
+- `http://127.0.0.1:3001`
+
+To add more origins, edit `backend/api.py` and update the `allow_origins` list in the CORS middleware configuration.
 
 ## Memory Management
 
@@ -306,14 +369,29 @@ The application uses Letta's memory management system:
 - **Summarization**: Automatically summarizes conversations after 15 messages
 - **Context Retention**: Maintains conversation context across interactions
 
+## Development
+
+### Running Tests
+
+```bash
+# Test backend API (ensure server is running first)
+python backend/test_api.py
+```
+
+### Stopping Services
+
+- **Backend**: Press `Ctrl+C` in Terminal 1
+- **Frontend**: Press `Ctrl+C` in Terminal 2
+- **Letta**: `docker stop letta-server`
+
 ## Future Enhancements
 
-- Web interface (Flask/FastAPI)
 - User authentication and session management
 - Database storage for conversation history
 - Additional personas
 - Custom persona creation
 - Multi-user support
+- Conversation export/import
 
 ## License
 
