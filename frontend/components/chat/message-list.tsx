@@ -35,7 +35,15 @@ export function MessageList({
       <div className="mx-auto max-w-3xl space-y-4">
         {messages.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="mb-4 text-6xl">{assistant?.avatarEmoji || '👋'}</div>
+            {assistant?.avatarUrl ? (
+              <img
+                src={assistant.avatarUrl}
+                alt={assistant.name}
+                className="mb-4 h-24 w-24 rounded-2xl object-cover shadow-lg"
+              />
+            ) : (
+              <div className="mb-4 text-6xl">{assistant?.avatarEmoji || '👋'}</div>
+            )}
             <h3 className="mb-2 text-lg font-semibold">
               Start chatting with {assistant?.name || 'your assistant'}
             </h3>
