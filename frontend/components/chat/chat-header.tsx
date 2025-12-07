@@ -43,7 +43,7 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/home')}
           className="h-9 w-9 shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -104,7 +104,7 @@ export function ChatHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
-              onClick={() => router.push(`/assistant/${assistant.id}/edit`)}
+              onClick={() => router.push(`/home/assistant/${assistant.id}/edit`)}
             >
               Edit assistant
             </DropdownMenuItem>

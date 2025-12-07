@@ -45,10 +45,10 @@ export function Sidebar({ conversations, onConversationClick }: SidebarProps) {
       {/* Navigation */}
       <nav className="px-3 py-4">
         <Link
-          href="/"
+          href="/home"
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-            pathname === '/'
+            pathname === '/home'
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
           )}
@@ -74,12 +74,12 @@ export function Sidebar({ conversations, onConversationClick }: SidebarProps) {
             ) : (
               conversations.slice(0, 10).map((convo) => {
                 const assistant = getAssistant(convo.assistantId);
-                const isActive = pathname === `/chat/${convo.id}`;
+                const isActive = pathname === `/home/chat/${convo.id}`;
 
                 return (
                   <Link
                     key={convo.id}
-                    href={`/chat/${convo.id}`}
+                    href={`/home/chat/${convo.id}`}
                     onClick={() => onConversationClick?.(convo.id)}
                     className={cn(
                       'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
@@ -108,10 +108,10 @@ export function Sidebar({ conversations, onConversationClick }: SidebarProps) {
       {/* Bottom Section */}
       <div className="mt-auto border-t border-border/50 p-3">
         <Link
-          href="/settings"
+          href="/home/settings"
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-            pathname === '/settings'
+            pathname === '/home/settings'
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
           )}

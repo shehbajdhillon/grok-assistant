@@ -76,7 +76,7 @@ export default function ChatPage() {
   // Redirect if conversation not found
   useEffect(() => {
     if (!conversation) {
-      router.push('/');
+      router.push('/home');
     }
   }, [conversation, router]);
 
@@ -124,7 +124,7 @@ export default function ChatPage() {
   const handleDeleteChat = useCallback(() => {
     if (conversation) {
       deleteConversation(conversation.id);
-      router.push('/');
+      router.push('/home');
     }
   }, [conversation, router]);
 

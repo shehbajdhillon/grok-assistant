@@ -54,11 +54,11 @@ export function MobileDrawer({
         {/* Navigation */}
         <nav className="px-3 py-4">
           <Link
-            href="/"
+            href="/home"
             onClick={handleLinkClick}
             className={cn(
               'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-              pathname === '/'
+              pathname === '/home'
                 ? 'bg-accent text-accent-foreground'
                 : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
             )}
@@ -84,12 +84,12 @@ export function MobileDrawer({
               ) : (
                 conversations.slice(0, 10).map((convo) => {
                   const assistant = getAssistant(convo.assistantId);
-                  const isActive = pathname === `/chat/${convo.id}`;
+                  const isActive = pathname === `/home/chat/${convo.id}`;
 
                   return (
                     <Link
                       key={convo.id}
-                      href={`/chat/${convo.id}`}
+                      href={`/home/chat/${convo.id}`}
                       onClick={handleLinkClick}
                       className={cn(
                         'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
@@ -118,11 +118,11 @@ export function MobileDrawer({
         {/* Bottom Section */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-border/50 bg-background p-3">
           <Link
-            href="/settings"
+            href="/home/settings"
             onClick={handleLinkClick}
             className={cn(
               'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-              pathname === '/settings'
+              pathname === '/home/settings'
                 ? 'bg-accent text-accent-foreground'
                 : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
             )}
