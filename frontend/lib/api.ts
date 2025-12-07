@@ -116,6 +116,12 @@ class ApiClient {
     });
   }
 
+  async getConversationPersona(conversationId: string): Promise<Persona> {
+    return this.request<Persona>(`/api/conversations/${conversationId}/persona`, {
+      method: 'GET',
+    });
+  }
+
   async setConversationPersona(conversationId: string, personaKey: string): Promise<{ success: boolean; persona: Persona; message: string }> {
     return this.request(`/api/conversations/${conversationId}/persona`, {
       method: 'POST',
@@ -138,7 +144,7 @@ class ApiClient {
   async getConversationHistory(
     conversationId: string, // Made required - conversation_id is required by backend
     limit?: number,
-    order: 'asc' | 'desc' = 'desc'
+    order: 'asc' | 'desc' = 'asc' // Request oldest first for chat UI
   ): Promise<ConversationHistory> {
     if (!conversationId) {
       throw new Error('conversationId is required');

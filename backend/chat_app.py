@@ -392,8 +392,8 @@ def main():
         if app.model:
             print(f"🤖 Model: {app.model}\n")
         
-        # Default to personal_assistant if no selection
-        default_persona = "personal_assistant"
+        # Default to atlas if no selection
+        default_persona = "atlas"
         if app.set_persona(default_persona):
             print(f"Default persona set to: {PERSONAS[default_persona]['name']}\n")
         else:

@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     for attempt in range(max_retries):
         try:
             # Try to set default persona (this will test Letta connection)
-            if chat_app.set_persona("personal_assistant"):
+            if chat_app.set_persona("atlas"):
                 print("✓ Chat application initialized")
                 print(f"  Model: {chat_app.model}")
                 print(f"  Default persona: {chat_app.current_persona}")
@@ -225,7 +225,7 @@ async def send_message(request: ChatMessageRequest):
                 chat_app.set_persona_for_conversation(request.conversation_id, request.persona_key)
             elif chat_app.agent_id:
                 # Use default persona (backward compatibility)
-                chat_app.set_persona_for_conversation(request.conversation_id, chat_app.current_persona or "personal_assistant")
+                       chat_app.set_persona_for_conversation(request.conversation_id, chat_app.current_persona or "atlas")
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -351,6 +351,37 @@ async def set_persona(request: SetPersonaRequest):
 class SetConversationPersonaRequest(BaseModel):
     """Request to set persona for a conversation."""
     persona_key: str = Field(..., description="The persona key to use for this conversation")
+
+
+@app.get("/api/conversations/{conversation_id}/persona", response_model=PersonaInfo, tags=["Conversations"])
+async def get_conversation_persona(conversation_id: str):
+    """Get the persona for a specific conversation."""
+    if not chat_app:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat application not initialized"
+        )
+    
+    # Get persona key for this conversation
+    persona_key = chat_app._conversation_personas.get(conversation_id)
+    
+    if not persona_key:
+        # Fallback to global persona if conversation doesn't have one set
+        persona_key = chat_app.current_persona or "atlas"
+    
+    persona = get_persona(persona_key)
+    if not persona:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Persona '{persona_key}' not found"
+        )
+    
+    return PersonaInfo(
+        key=persona_key,
+        name=persona["name"],
+        description=persona["description"],
+        is_current=True
+    )
 
 
 @app.post("/api/conversations/{conversation_id}/persona", response_model=SetPersonaResponse, tags=["Conversations"])
@@ -550,6 +581,13 @@ async def get_conversation_history(conversation_id: Optional[str] = None, limit:
                 created_at=created_at,
                 message_type=final_message_type
             ))
+        
+        # Ensure messages are sorted by created_at in the requested order
+        from datetime import datetime
+        if order == "asc":
+            result_messages.sort(key=lambda x: x.created_at if x.created_at else datetime.min)
+        else:
+            result_messages.sort(key=lambda x: x.created_at if x.created_at else datetime.max, reverse=True)
         
         return ConversationHistoryResponse(
             messages=result_messages,

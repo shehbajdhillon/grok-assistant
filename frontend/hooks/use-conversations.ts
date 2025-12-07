@@ -4,11 +4,18 @@ import { useState, useCallback, useEffect } from 'react';
 import { Conversation, Message } from '@/types';
 import { apiClient } from '@/lib/api';
 
-// Map persona keys to assistant IDs (temporary until we sync personas with assistants)
+// Map persona keys to assistant IDs (matches frontend/lib/mock-data.ts)
 const PERSONA_TO_ASSISTANT: Record<string, string> = {
-  personal_assistant: '1',
-  dating_coach: '2',
-  friend: '3',
+  atlas: '1',
+  luna: '2',
+  rex: '3',
+  sage: '4',
+  noir: '5',
+  ziggy: '6',
+  // Legacy mappings for backward compatibility
+  personal_assistant: '1', // Maps to Atlas
+  dating_coach: '2', // Maps to Luna
+  friend: '6', // Maps to Ziggy
 };
 
 // Convert API message to app message format
@@ -28,7 +35,7 @@ function historyToConversation(
   assistantId: string,
   history: any
 ): Conversation {
-  // API returns messages in desc order (newest first), reverse to show oldest first
+  // API returns messages in asc order (oldest first) - perfect for chat UI
   // Filter out system messages and memory metadata as a safety measure
   const messages = history.messages
     .filter((msg: any) => {
@@ -43,7 +50,9 @@ function historyToConversation(
       return true;
     })
     .map((msg: any) => apiMessageToMessage(msg, conversationId))
-    .reverse();
+    // Messages are already in chronological order (oldest first) from API
+    // Sort by timestamp to ensure correct order (safety check)
+    .sort((a: Message, b: Message) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return {
     id: conversationId,
@@ -89,13 +98,16 @@ export function useConversations() {
       const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Set persona based on assistant (map assistant to persona)
-      // For now, we'll set the persona based on assistant ID
+      // Maps frontend assistant IDs to backend persona keys
       const assistantToPersona: Record<string, string> = {
-        '1': 'personal_assistant',
-        '2': 'dating_coach',
-        '3': 'friend',
+        '1': 'atlas',
+        '2': 'luna',
+        '3': 'rex',
+        '4': 'sage',
+        '5': 'noir',
+        '6': 'ziggy',
       };
-      const personaKey = assistantToPersona[assistantId] || 'personal_assistant';
+      const personaKey = assistantToPersona[assistantId] || 'atlas';
       
       try {
         // Set the persona for this specific conversation (not global)
@@ -188,15 +200,25 @@ export function useConversation(conversationId: string | null) {
     setError(null);
     try {
       const history = await apiClient.getConversationHistory(conversationId);
-      // Get current persona for assistantId (with fallback)
-      let personaKey = 'personal_assistant'; // Default
+      // Get persona for this specific conversation to determine assistantId
+      let personaKey = 'atlas'; // Default
       try {
-        const currentPersona = await apiClient.getCurrentPersona();
-        personaKey = currentPersona.key;
+        // Get conversation-specific persona from backend
+        const conversationPersona = await apiClient.getConversationPersona(conversationId);
+        personaKey = conversationPersona.key;
       } catch (err) {
-        console.warn('Could not get current persona, using default:', err);
+        console.warn('Could not get conversation persona, using default:', err);
+        // Fallback to global persona if conversation-specific one doesn't exist
+        try {
+          const currentPersona = await apiClient.getCurrentPersona();
+          personaKey = currentPersona.key;
+        } catch (err2) {
+          console.warn('Could not get global persona either, using default:', err2);
+        }
       }
-      const conv = historyToConversation(conversationId, personaKey, history);
+      // Map persona key to assistant ID
+      const assistantId = PERSONA_TO_ASSISTANT[personaKey] || '1';
+      const conv = historyToConversation(conversationId, assistantId, history);
       setConversation(conv);
     } catch (err: any) {
       setError(err.message || 'Failed to load conversation');
@@ -232,7 +254,7 @@ export function useConversation(conversationId: string | null) {
           setConversation((prev) => {
             if (!prev) {
               // Create conversation if it doesn't exist
-              const currentPersona = { key: 'personal_assistant' }; // Default
+              const currentPersona = { key: 'atlas' }; // Default
               return {
                 id: conversationId,
                 assistantId: PERSONA_TO_ASSISTANT[currentPersona.key] || '1',

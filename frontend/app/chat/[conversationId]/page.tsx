@@ -8,11 +8,18 @@ import { useTTS } from '@/hooks/use-tts';
 import { apiClient } from '@/lib/api';
 import { getAssistant } from '@/lib/mock-data';
 
-// Map persona keys to assistant IDs (temporary until we sync personas with assistants)
+// Map persona keys to assistant IDs (matches frontend/lib/mock-data.ts)
 const PERSONA_TO_ASSISTANT: Record<string, string> = {
-  personal_assistant: '1',
-  dating_coach: '2',
-  friend: '3',
+  atlas: '1',
+  luna: '2',
+  rex: '3',
+  sage: '4',
+  noir: '5',
+  ziggy: '6',
+  // Legacy mappings for backward compatibility
+  personal_assistant: '1', // Maps to Atlas
+  dating_coach: '2', // Maps to Luna
+  friend: '6', // Maps to Ziggy
 };
 
 export default function ChatPage() {
@@ -36,24 +43,10 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
-  const [currentPersona, setCurrentPersona] = useState<any>(null);
-
-  // Get current persona (with error handling)
-  useEffect(() => {
-    apiClient.getCurrentPersona()
-      .then(setCurrentPersona)
-      .catch((err) => {
-        console.warn('Could not get current persona:', err);
-        // Set default persona if API fails
-        setCurrentPersona({ key: 'personal_assistant', name: 'Personal Assistant', description: '', is_current: true });
-      });
-  }, []);
-
-  // Determine assistant ID from conversation or current persona
-  // If conversation has assistantId, use it; otherwise use persona mapping
-  const assistantId = conversation?.assistantId || 
-    (currentPersona && currentPersona.key ? PERSONA_TO_ASSISTANT[currentPersona.key] : '1'); // Default to '1' (personal_assistant)
-  const assistant = assistantId ? getAssistant(assistantId) : getAssistant('1'); // Fallback to assistant '1'
+  // Determine assistant ID from conversation's assistantId
+  // The conversation stores the assistantId when created, so use that directly
+  const assistantId = conversation?.assistantId || '1'; // Default to '1' (atlas) if no conversation yet
+  const assistant = getAssistant(assistantId);
   
   // Ensure we always have an assistant (use default if needed)
   const finalAssistant = assistant || getAssistant('1');
@@ -183,7 +176,7 @@ export default function ChatPage() {
       <ChatInput
         onSend={handleSendMessage}
         disabled={isLoading}
-        placeholder={`Message ${finalAssistant.name}...`}
+        placeholder="Type a message..."
       />
     </div>
   );
