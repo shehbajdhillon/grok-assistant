@@ -18,13 +18,17 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     token = await getTokenFn();
   }
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
   };
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Merge with any existing headers
+  if (options.headers) {
+    Object.assign(headers, options.headers);
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {

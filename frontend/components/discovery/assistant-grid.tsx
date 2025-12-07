@@ -16,10 +16,14 @@ export function AssistantGrid({ assistants, isLoading = false }: AssistantGridPr
   const router = useRouter();
   const { create: createConversation } = useConversations();
 
-  const handleAssistantClick = (assistant: Assistant) => {
-    // Create a new conversation and navigate to it
-    const conversation = createConversation(assistant.id);
-    router.push(`/home/chat/${conversation.id}`);
+  const handleAssistantClick = async (assistant: Assistant) => {
+    try {
+      // Create a new conversation and navigate to it
+      const conversation = await createConversation(assistant.id);
+      router.push(`/home/chat/${conversation.id}`);
+    } catch (err) {
+      console.error('Failed to create conversation:', err);
+    }
   };
 
   if (isLoading) {
