@@ -49,7 +49,7 @@ class LettaService:
                 name=f"assistant_{assistant.id}_{user.id}",
                 model="xai/grok-4-fast-non-reasoning",
                 embedding="openai/text-embedding-3-small",
-                context_window_limit=8000,
+                context_window_limit=128000,
                 memory_blocks=[
                     {
                         "label": "human",
