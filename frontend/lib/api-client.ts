@@ -51,32 +51,20 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
 // Assistant API calls
 export async function getAssistants(): Promise<Assistant[]> {
-  const data = await fetchAPI('/api/assistants/me');
-  return data.map((a: any) => ({
+  const response = await fetchAPI('/api/assistants/me');
+  return response.items.map((a: any) => ({
     ...a,
-    createdAt: new Date(a.created_at),
-    updatedAt: new Date(a.updated_at),
-    voiceSettings: a.voice_settings,
-    avatarUrl: a.avatar_url,
-    avatarEmoji: a.avatar_emoji,
-    createdBy: a.created_by,
-    isPublic: a.is_public,
-    usageCount: a.usage_count,
+    createdAt: new Date(a.createdAt),
+    updatedAt: new Date(a.updatedAt),
   }));
 }
 
 export async function getPublicAssistants(): Promise<Assistant[]> {
-  const data = await fetchAPI('/api/assistants');
-  return data.map((a: any) => ({
+  const response = await fetchAPI('/api/assistants');
+  return response.items.map((a: any) => ({
     ...a,
-    createdAt: new Date(a.created_at),
-    updatedAt: new Date(a.updated_at),
-    voiceSettings: a.voice_settings,
-    avatarUrl: a.avatar_url,
-    avatarEmoji: a.avatar_emoji,
-    createdBy: a.created_by,
-    isPublic: a.is_public,
-    usageCount: a.usage_count,
+    createdAt: new Date(a.createdAt),
+    updatedAt: new Date(a.updatedAt),
   }));
 }
 
@@ -84,14 +72,8 @@ export async function getAssistant(id: string): Promise<Assistant> {
   const data = await fetchAPI(`/api/assistants/${id}`);
   return {
     ...data,
-    createdAt: new Date(data.created_at),
-    updatedAt: new Date(data.updated_at),
-    voiceSettings: data.voice_settings,
-    avatarUrl: data.avatar_url,
-    avatarEmoji: data.avatar_emoji,
-    createdBy: data.created_by,
-    isPublic: data.is_public,
-    usageCount: data.usage_count,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
   };
 }
 
@@ -100,29 +82,13 @@ export async function createAssistant(
 ): Promise<Assistant> {
   const data = await fetchAPI('/api/assistants', {
     method: 'POST',
-    body: JSON.stringify({
-      name: assistant.name,
-      description: assistant.description,
-      personality: assistant.personality,
-      tone: assistant.tone,
-      voice_settings: assistant.voiceSettings,
-      avatar_url: assistant.avatarUrl,
-      avatar_emoji: assistant.avatarEmoji,
-      is_public: assistant.isPublic,
-      tags: assistant.tags,
-    }),
+    body: JSON.stringify(assistant),
   });
 
   return {
     ...data,
-    createdAt: new Date(data.created_at),
-    updatedAt: new Date(data.updated_at),
-    voiceSettings: data.voice_settings,
-    avatarUrl: data.avatar_url,
-    avatarEmoji: data.avatar_emoji,
-    createdBy: data.created_by,
-    isPublic: data.is_public,
-    usageCount: data.usage_count,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
   };
 }
 
@@ -130,32 +96,15 @@ export async function updateAssistant(
   id: string,
   updates: Partial<Assistant>
 ): Promise<Assistant> {
-  const body: any = {};
-  if (updates.name !== undefined) body.name = updates.name;
-  if (updates.description !== undefined) body.description = updates.description;
-  if (updates.personality !== undefined) body.personality = updates.personality;
-  if (updates.tone !== undefined) body.tone = updates.tone;
-  if (updates.voiceSettings !== undefined) body.voice_settings = updates.voiceSettings;
-  if (updates.avatarUrl !== undefined) body.avatar_url = updates.avatarUrl;
-  if (updates.avatarEmoji !== undefined) body.avatar_emoji = updates.avatarEmoji;
-  if (updates.isPublic !== undefined) body.is_public = updates.isPublic;
-  if (updates.tags !== undefined) body.tags = updates.tags;
-
   const data = await fetchAPI(`/api/assistants/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(body),
+    body: JSON.stringify(updates),
   });
 
   return {
     ...data,
-    createdAt: new Date(data.created_at),
-    updatedAt: new Date(data.updated_at),
-    voiceSettings: data.voice_settings,
-    avatarUrl: data.avatar_url,
-    avatarEmoji: data.avatar_emoji,
-    createdBy: data.created_by,
-    isPublic: data.is_public,
-    usageCount: data.usage_count,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
   };
 }
 
