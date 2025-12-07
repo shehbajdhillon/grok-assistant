@@ -16,6 +16,7 @@ class ConversationAssistantInfo(BaseModel):
     id: UUID
     name: str
     avatarEmoji: str
+    avatarUrl: Optional[str] = None
     tone: str
     voiceSettings: Optional[VoiceSettings] = None
 
@@ -67,6 +68,7 @@ class ConversationResponse(BaseModel):
                 id=assistant.id,
                 name=assistant.name,
                 avatarEmoji=assistant.avatar_emoji,
+                avatarUrl=assistant.avatar_url,
                 tone=assistant.tone,
                 voiceSettings=VoiceSettings(**migrate_voice_settings(assistant.voice_settings)),
             )

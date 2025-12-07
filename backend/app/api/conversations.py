@@ -52,6 +52,7 @@ async def list_conversations(
                     id=assistant.id,
                     name=assistant.name,
                     avatarEmoji=assistant.avatar_emoji,
+                    avatarUrl=assistant.avatar_url,
                     tone=assistant.tone,
                     voiceSettings=VoiceSettings(**migrate_voice_settings(assistant.voice_settings)),
                 ),
