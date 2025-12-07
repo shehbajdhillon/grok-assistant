@@ -6,12 +6,16 @@ import { Sparkles } from 'lucide-react';
 import { AssistantGrid } from '@/components/discovery';
 import { Assistant } from '@/types';
 import * as api from '@/lib/api-client';
+import { useAuthReady } from '@/components/providers/api-provider';
 
 export default function DiscoveryPage() {
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [loading, setLoading] = useState(true);
+  const authReady = useAuthReady();
 
   useEffect(() => {
+    if (!authReady) return;
+
     // Load both public assistants and user's own assistants
     Promise.all([
       api.getPublicAssistants(),
@@ -35,7 +39,7 @@ export default function DiscoveryPage() {
       })
       .catch(err => console.error('Failed to load assistants:', err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authReady]);
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-10">
