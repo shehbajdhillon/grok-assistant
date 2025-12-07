@@ -17,6 +17,7 @@ PyJWT>=2.8.0
 
 # HTTP client
 httpx>=0.26.0
+requests>=2.31.0
 
 # Letta AI
 letta-client>=1.3.2
