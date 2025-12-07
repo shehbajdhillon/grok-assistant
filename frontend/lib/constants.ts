@@ -1,4 +1,4 @@
-export const APP_NAME = 'AI Companion';
+export const APP_NAME = 'FriendGroups';
 
 export const TONE_LABELS: Record<string, string> = {
   professional: 'Professional',
