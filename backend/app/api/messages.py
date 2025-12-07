@@ -1,8 +1,9 @@
 """Message API endpoints."""
 
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -11,6 +12,9 @@ from app.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse, SendMessageResponse
 from app.services import conversation_service
 from app.services.letta_service import letta_service
+from app.services.stt_service import stt_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["messages"])
 
@@ -58,9 +62,7 @@ async def send_message(
                 user_message=data.content,
             )
         except Exception as e:
-            import logging
-
-            logging.error(f"Letta error: {e}")
+            logger.error(f"Letta error: {e}")
             # Use fallback response based on assistant tone
             assistant = conversation.assistant
             if assistant:
@@ -70,6 +72,85 @@ async def send_message(
         assistant = conversation.assistant
         if assistant:
             assistant_content = _get_fallback_response(assistant.tone, data.content)
+
+    # Save assistant message
+    assistant_message = await conversation_service.add_message(
+        db, conversation, role="assistant", content=assistant_content
+    )
+
+    return SendMessageResponse(
+        userMessage=MessageResponse.from_orm_with_mapping(user_message),
+        assistantMessage=MessageResponse.from_orm_with_mapping(assistant_message),
+    )
+
+
+@router.post("/{conversation_id}/messages/audio", response_model=SendMessageResponse)
+async def send_audio_message(
+    conversation_id: UUID,
+    audio: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> SendMessageResponse:
+    """
+    Send an audio message - transcribes and processes like text.
+
+    This endpoint:
+    1. Receives audio file (webm/mp3/wav)
+    2. Calls OpenAI Whisper for transcription
+    3. Sends transcription to Letta agent
+    4. Returns both user (transcribed) and assistant messages
+    """
+    # Get conversation with assistant
+    conversation = await conversation_service.get_conversation_by_id(
+        db, conversation_id, include_messages=False
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Check ownership
+    if conversation.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You don't own this conversation")
+
+    # Read and transcribe audio
+    audio_data = await audio.read()
+    filename = audio.filename or "recording.webm"
+
+    logger.info(f"Received audio file: {filename} ({len(audio_data)} bytes)")
+
+    try:
+        transcription = await stt_service.transcribe(audio_data, filename)
+    except Exception as e:
+        logger.error(f"Transcription failed: {e}")
+        raise HTTPException(status_code=400, detail=f"Transcription failed: {str(e)}")
+
+    if not transcription.strip():
+        raise HTTPException(status_code=400, detail="No speech detected in audio")
+
+    logger.info(f"Transcription: {transcription[:100]}...")
+
+    # Save user message (transcribed text)
+    user_message = await conversation_service.add_message(
+        db, conversation, role="user", content=transcription
+    )
+
+    # Get AI response from Letta
+    assistant_content = "I'm sorry, I'm having trouble connecting to my memory system right now. Please try again."
+
+    if conversation.letta_agent_id:
+        try:
+            assistant_content = await letta_service.send_message(
+                agent_id=conversation.letta_agent_id,
+                user_message=transcription,
+            )
+        except Exception as e:
+            logger.error(f"Letta error: {e}")
+            assistant = conversation.assistant
+            if assistant:
+                assistant_content = _get_fallback_response(assistant.tone, transcription)
+    else:
+        assistant = conversation.assistant
+        if assistant:
+            assistant_content = _get_fallback_response(assistant.tone, transcription)
 
     # Save assistant message
     assistant_message = await conversation_service.add_message(
