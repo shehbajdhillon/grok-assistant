@@ -9,14 +9,33 @@ from pydantic import BaseModel, ConfigDict, Field
 # Type aliases matching frontend types
 VoiceId = Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
 TonePreset = Literal[
+    # Positive tones
     "professional",
-    "casual",
     "friendly",
-    "formal",
     "humorous",
     "empathetic",
     "motivational",
+    "cheerful",
+    "playful",
+    "enthusiastic",
+    "warm",
+    "supportive",
+    # Neutral tones
+    "casual",
+    "formal",
     "mysterious",
+    "calm",
+    "analytical",
+    "stoic",
+    "philosophical",
+    # Negative tones
+    "sarcastic",
+    "blunt",
+    "cynical",
+    "melancholic",
+    "stern",
+    "dramatic",
+    "pessimistic",
 ]
 
 

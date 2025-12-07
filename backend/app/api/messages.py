@@ -85,13 +85,32 @@ async def send_message(
 def _get_fallback_response(tone: str, user_message: str) -> str:
     """Generate a fallback response based on assistant tone."""
     fallbacks = {
+        # Positive tones
         "professional": f"Thank you for your message. I understand you're asking about: {user_message[:50]}. Let me help you with that systematically.",
-        "casual": f"Hey! Got your message about {user_message[:30]}... Let me think about that for a sec.",
         "friendly": f"Thanks for sharing that with me! I'd love to help you with: {user_message[:30]}...",
-        "formal": f"I acknowledge your inquiry regarding: {user_message[:50]}. Please allow me to provide a considered response.",
         "humorous": f"Ooh, interesting question! You asked about {user_message[:30]}... *adjusts comedy glasses* Let me see what I can do!",
         "empathetic": f"I hear you, and I appreciate you sharing that with me. Let's explore this together: {user_message[:30]}...",
         "motivational": f"YES! Great question, champion! You're asking about {user_message[:30]} - let's crush this!",
+        "cheerful": f"Oh how wonderful! I love that you're asking about {user_message[:30]}! This is going to be fun!",
+        "playful": f"Ooh ooh! {user_message[:30]}... *bounces excitedly* Let me play with this idea!",
+        "enthusiastic": f"WOW! What an exciting question about {user_message[:30]}! I'm so pumped to explore this with you!",
+        "warm": f"I'm so glad you came to me with this. {user_message[:30]}... Let me wrap my thoughts around this for you.",
+        "supportive": f"I'm here for you. You're asking about {user_message[:30]}, and we'll work through this together, one step at a time.",
+        # Neutral tones
+        "casual": f"Hey! Got your message about {user_message[:30]}... Let me think about that for a sec.",
+        "formal": f"I acknowledge your inquiry regarding: {user_message[:50]}. Please allow me to provide a considered response.",
         "mysterious": f"Ah... an intriguing inquiry. {user_message[:30]}... The answer lies within the shadows of knowledge...",
+        "calm": f"I see you're asking about {user_message[:30]}... Let's take a moment to consider this thoughtfully.",
+        "analytical": f"Interesting. You've presented: {user_message[:40]}. Let me analyze the key components systematically.",
+        "stoic": f"You ask about {user_message[:30]}. Very well. Let me offer what wisdom I can.",
+        "philosophical": f"Ah, {user_message[:30]}... This raises deeper questions about the nature of understanding itself.",
+        # Negative tones
+        "sarcastic": f"Oh, how original. {user_message[:30]}... Let me pretend I haven't heard that before.",
+        "blunt": f"You want to know about {user_message[:30]}. Fine. Here's the truth without the sugar coating.",
+        "cynical": f"So you're asking about {user_message[:30]}. Of course you are. Everyone wants easy answers.",
+        "melancholic": f"You ask about {user_message[:30]}... *sighs* Very well, though the answer may not bring the comfort you seek.",
+        "stern": f"Listen carefully. You're asking about {user_message[:30]}. I'll tell you once, so pay attention.",
+        "dramatic": f"BEHOLD! You dare ask about {user_message[:30]}! The very cosmos trembles at such a question!",
+        "pessimistic": f"You're asking about {user_message[:30]}. I suppose I can try, though it probably won't help much.",
     }
     return fallbacks.get(tone, f"I received your message: {user_message[:50]}...")

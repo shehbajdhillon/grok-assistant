@@ -1,14 +1,33 @@
 export type VoiceId = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
 
 export type TonePreset =
+  // Positive tones
   | 'professional'
-  | 'casual'
   | 'friendly'
-  | 'formal'
   | 'humorous'
   | 'empathetic'
   | 'motivational'
-  | 'mysterious';
+  | 'cheerful'
+  | 'playful'
+  | 'enthusiastic'
+  | 'warm'
+  | 'supportive'
+  // Neutral tones
+  | 'casual'
+  | 'formal'
+  | 'mysterious'
+  | 'calm'
+  | 'analytical'
+  | 'stoic'
+  | 'philosophical'
+  // Negative tones
+  | 'sarcastic'
+  | 'blunt'
+  | 'cynical'
+  | 'melancholic'
+  | 'stern'
+  | 'dramatic'
+  | 'pessimistic';
 
 export interface VoiceSettings {
   voiceId: VoiceId;
