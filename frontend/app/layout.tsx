@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Companion",
+  title: "FriendGroups",
   description: "Create and chat with personalized AI assistants",
 };
 

@@ -50,7 +50,7 @@ export default function LandingPage() {
               className="text-2xl font-black tracking-tighter text-white"
               style={{ fontFamily: '"Archivo Black", sans-serif' }}
             >
-              AI COMPANION
+              FRIENDGROUPS
             </span>
           </div>
           <Link href="/home">
@@ -245,7 +245,7 @@ export default function LandingPage() {
             >
               READY TO BUILD
               <br />
-              YOUR AI COMPANION?
+              YOUR FRIENDGROUP?
             </h2>
             <p className="mb-10 text-xl text-gray-300">
               Join thousands creating personalized AI assistants
@@ -275,7 +275,7 @@ export default function LandingPage() {
           className="mt-20 border-t border-white/10 pt-12 text-center"
         >
           <p className="text-sm font-bold uppercase tracking-wider text-gray-600">
-            © 2025 AI Companion. Built for the future.
+            © 2025 FriendGroups. Built for the future.
           </p>
         </motion.footer>
       </div>
