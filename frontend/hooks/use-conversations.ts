@@ -98,10 +98,10 @@ export function useConversations() {
       const personaKey = assistantToPersona[assistantId] || 'personal_assistant';
       
       try {
-        // Set the persona for this conversation
-        await apiClient.setPersona(personaKey);
+        // Set the persona for this specific conversation (not global)
+        await apiClient.setConversationPersona(conversationId, personaKey);
       } catch (err) {
-        console.warn('Could not set persona, continuing anyway:', err);
+        console.warn('Could not set persona for conversation, continuing anyway:', err);
       }
       
       const newConversation: Conversation = {

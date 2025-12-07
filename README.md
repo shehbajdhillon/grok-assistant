@@ -165,7 +165,7 @@ python -m backend.chat_app
 
 # Or if you're in the backend directory
 cd backend
-python chat_app.py
+python -m chat_app
 ```
 
 **Available Commands:**

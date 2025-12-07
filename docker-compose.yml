@@ -29,7 +29,8 @@ services:
       - API_HOST=0.0.0.0
     volumes:
       # Mount backend code for development (hot reload)
-      - ./backend:/app
+      # Mount to /project_root/backend to match Python import path (backend.api)
+      - ./backend:/project_root/backend
       # Note: .env is loaded via environment variables in docker-compose, not mounted as file
     depends_on:
       - letta-server
@@ -37,7 +38,7 @@ services:
       - grok-assistant-network
     restart: unless-stopped
     # For development - remove reload in production
-    command: uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    command: uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload --reload-dir /project_root/backend
 
 networks:
   grok-assistant-network:

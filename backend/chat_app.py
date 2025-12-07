@@ -34,13 +34,106 @@ class ChatApplication:
         # Always use self-hosted server (no API key needed)
         self.client = Letta(base_url=api_url)
         self.model = model
+        # Legacy: kept for backward compatibility, but use _persona_agents instead
         self.agent_id: Optional[str] = None
         self.current_persona: Optional[str] = None
-        # Map conversation_id -> agent_id for managing multiple conversations
-        self._conversation_agents: dict[str, str] = {}
+        # Map conversation_id -> persona_key (which conversation uses which persona)
+        self._conversation_personas: dict[str, str] = {}
+        # Map persona_key -> agent_id (one agent per persona, shared across conversations)
+        self._persona_agents: dict[str, str] = {}
         
+    def _get_or_create_agent_for_persona(self, persona_key: str) -> Optional[str]:
+        """Get or create an agent for a specific persona.
+        
+        Args:
+            persona_key: Key of the persona
+            
+        Returns:
+            Agent ID if successful, None otherwise
+        """
+        # Check if agent already exists for this persona
+        if persona_key in self._persona_agents:
+            return self._persona_agents[persona_key]
+        
+        persona = get_persona(persona_key)
+        if not persona:
+            return None
+        
+        instructions = get_persona_instructions(persona_key)
+        
+        # Create agent with optional model specification
+        create_params = {
+            "name": f"chat_agent_{persona_key}",
+            "system": instructions  # Set system prompt directly
+        }
+        if self.model:
+            # Handle different model formats
+            model_str = self.model
+            # If using xai/grok format, try to use OpenRouter (supported provider)
+            if model_str.startswith("xai/") or "grok" in model_str.lower():
+                # Check if OpenRouter is configured
+                openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+                if openrouter_api_key:
+                    # Use OpenRouter format: openrouter/xai/grok-3-mini
+                    if not model_str.startswith("openrouter/"):
+                        model_str = model_str.replace("xai/", "openrouter/xai/")
+                else:
+                    # If no OpenRouter key, try direct format
+                    # Note: This may fail if xai provider is not configured on Letta server
+                    pass
+            
+            create_params["model"] = model_str
+            # Set embedding model - required by Letta
+            # Try to use free/local options first, then fall back to OpenAI
+            embedding_model = os.getenv("LETTA_EMBEDDING_MODEL")
+            if not embedding_model:
+                # Use Ollama for free embeddings (self-hosted setup)
+                ollama_url = os.getenv("OLLAMA_API_URL") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                # Use Ollama embedding model (free, runs locally)
+                # Letta expects format: ollama/model-name:latest
+                ollama_model = os.getenv("LETTA_OLLAMA_EMBEDDING_MODEL", "all-minilm")
+                # Ensure it has the ollama/ prefix and :latest suffix
+                if not ollama_model.startswith("ollama/"):
+                    embedding_model = f"ollama/{ollama_model}"
+                else:
+                    embedding_model = ollama_model
+                # Add :latest if not present
+                if ":latest" not in embedding_model:
+                    embedding_model = f"{embedding_model}:latest"
+            
+            create_params["embedding"] = embedding_model
+            # Set context window limit for Grok models (they have large context windows)
+            if "grok" in model_str.lower():
+                create_params["context_window_limit"] = int(os.getenv("LETTA_CONTEXT_WINDOW_LIMIT", "30000"))
+        
+        try:
+            agent = self.client.agents.create(**create_params)
+            agent_id = agent.id
+            # Store mapping
+            self._persona_agents[persona_key] = agent_id
+            # Also create memory block for the persona (for reference/backup)
+            # The system prompt is already set above, but memory blocks can provide additional context
+            block = self.client.blocks.create(
+                label="persona",
+                value=instructions,
+                entity_id=agent_id
+            )
+            return agent_id
+        except Exception as e:
+            error_msg = str(e)
+            # Print more detailed error information
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                error_msg = f"{error_msg} - Response: {e.response.text}"
+            print(f"Error creating agent for persona {persona_key}: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     def set_persona(self, persona_key: str) -> bool:
-        """Set the active persona for the agent.
+        """Set the active persona (legacy method for backward compatibility).
+        
+        This method is kept for backward compatibility but now delegates to
+        _get_or_create_agent_for_persona. For new code, use set_persona_for_conversation.
         
         Args:
             persona_key: Key of the persona to activate
@@ -48,96 +141,32 @@ class ChatApplication:
         Returns:
             True if persona was set successfully, False otherwise
         """
-        persona = get_persona(persona_key)
-        if not persona:
+        agent_id = self._get_or_create_agent_for_persona(persona_key)
+        if agent_id:
+            # Update legacy fields for backward compatibility
+            self.agent_id = agent_id
+            self.current_persona = persona_key
+            return True
+        return False
+    
+    def set_persona_for_conversation(self, conversation_id: str, persona_key: str) -> bool:
+        """Set the persona for a specific conversation.
+        
+        Args:
+            conversation_id: The conversation ID
+            persona_key: Key of the persona to use for this conversation
+            
+        Returns:
+            True if persona was set successfully, False otherwise
+        """
+        # Get or create agent for this persona
+        agent_id = self._get_or_create_agent_for_persona(persona_key)
+        if not agent_id:
             return False
         
-        instructions = get_persona_instructions(persona_key)
+        # Store mapping: conversation_id -> persona_key
+        self._conversation_personas[conversation_id] = persona_key
         
-        # Create agent with memory block for the persona, or update existing one
-        if not self.agent_id:
-            # Create agent with optional model specification
-            create_params = {
-                "name": f"chat_agent_{persona_key}",
-                "system": instructions  # Set system prompt directly
-            }
-            if self.model:
-                # Handle different model formats
-                model_str = self.model
-                # If using xai/grok format, try to use OpenRouter (supported provider)
-                if model_str.startswith("xai/") or "grok" in model_str.lower():
-                    # Check if OpenRouter is configured
-                    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-                    if openrouter_api_key:
-                        # Use OpenRouter format: openrouter/xai/grok-3-mini
-                        if not model_str.startswith("openrouter/"):
-                            model_str = model_str.replace("xai/", "openrouter/xai/")
-                    else:
-                        # If no OpenRouter key, try direct format
-                        # Note: This may fail if xai provider is not configured on Letta server
-                        pass
-                
-                create_params["model"] = model_str
-                # Set embedding model - required by Letta
-                # Try to use free/local options first, then fall back to OpenAI
-                embedding_model = os.getenv("LETTA_EMBEDDING_MODEL")
-                if not embedding_model:
-                    # Use Ollama for free embeddings (self-hosted setup)
-                    ollama_url = os.getenv("OLLAMA_API_URL") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-                    # Use Ollama embedding model (free, runs locally)
-                    # Letta expects format: ollama/model-name:latest
-                    ollama_model = os.getenv("LETTA_OLLAMA_EMBEDDING_MODEL", "all-minilm")
-                    # Ensure it has the ollama/ prefix and :latest suffix
-                    if not ollama_model.startswith("ollama/"):
-                        embedding_model = f"ollama/{ollama_model}"
-                    else:
-                        embedding_model = ollama_model
-                    # Add :latest if not present
-                    if ":latest" not in embedding_model:
-                        embedding_model = f"{embedding_model}:latest"
-                
-                create_params["embedding"] = embedding_model
-                # Set context window limit for Grok models (they have large context windows)
-                if "grok" in model_str.lower():
-                    create_params["context_window_limit"] = int(os.getenv("LETTA_CONTEXT_WINDOW_LIMIT", "30000"))
-            
-            agent = self.client.agents.create(**create_params)
-            self.agent_id = agent.id
-            # Also create memory block for the persona (for reference/backup)
-            # The system prompt is already set above, but memory blocks can provide additional context
-            block = self.client.blocks.create(
-                label="persona",
-                value=instructions,
-                entity_id=self.agent_id
-            )
-        else:
-            # Update existing agent's memory blocks with new persona
-            try:
-                # Try to find and update existing persona block
-                blocks = self.client.agents.blocks.list(agent_id=self.agent_id)
-                persona_block = next((b for b in blocks if b.label == "persona"), None)
-                if persona_block:
-                    self.client.agents.blocks.update(
-                        block_id=persona_block.id,
-                        agent_id=self.agent_id,
-                        value=instructions
-                    )
-                else:
-                    # Create new block if it doesn't exist
-                    block = self.client.blocks.create(
-                        label="persona",
-                        value=instructions,
-                        entity_id=self.agent_id
-                    )
-            except Exception:
-                # If update fails, create a new memory block
-                block = self.client.blocks.create(
-                    label="persona",
-                    value=instructions,
-                    entity_id=self.agent_id
-                )
-        
-        self.current_persona = persona_key
         return True
     
     def chat(self, user_input: str, conversation_id: Optional[str] = None, group_id: Optional[str] = None) -> tuple[str, Optional[str]]:
@@ -151,12 +180,25 @@ class ChatApplication:
         Returns:
             Tuple of (response_text, group_id) - group_id can be used as conversation_id for future messages
         """
-        # Use conversation-specific agent if conversation_id provided
-        agent_id = self.agent_id
-        if conversation_id and conversation_id in self._conversation_agents:
-            agent_id = self._conversation_agents[conversation_id]
-        elif not agent_id:
-            return ("Please select a persona first using 'set_persona <persona_name>'", None)
+        # Determine which agent to use based on conversation
+        agent_id = None
+        
+        if conversation_id:
+            # Look up persona for this conversation
+            persona_key = self._conversation_personas.get(conversation_id)
+            if persona_key:
+                # Get agent for this persona
+                agent_id = self._persona_agents.get(persona_key)
+                if not agent_id:
+                    # Agent doesn't exist yet, create it
+                    agent_id = self._get_or_create_agent_for_persona(persona_key)
+        
+        # Fallback to legacy global agent_id if no conversation-specific agent found
+        if not agent_id:
+            agent_id = self.agent_id
+        
+        if not agent_id:
+            return ("Please set a persona for this conversation first", None)
         
         try:
             # Note: group_id is not a parameter for messages.create()
@@ -259,10 +301,19 @@ class ChatApplication:
             - If conversation_id is provided, it maps to a group_id internally
             - The agent_id is managed automatically based on the persona
         """
-        # Determine which agent to use
-        agent_id = self.agent_id
-        if conversation_id and conversation_id in self._conversation_agents:
-            agent_id = self._conversation_agents[conversation_id]
+        # Determine which agent to use based on conversation
+        agent_id = None
+        
+        if conversation_id:
+            # Look up persona for this conversation
+            persona_key = self._conversation_personas.get(conversation_id)
+            if persona_key:
+                # Get agent for this persona
+                agent_id = self._persona_agents.get(persona_key)
+        
+        # Fallback to legacy global agent_id if no conversation-specific agent found
+        if not agent_id:
+            agent_id = self.agent_id
         
         if not agent_id:
             return []

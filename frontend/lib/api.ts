@@ -116,6 +116,13 @@ class ApiClient {
     });
   }
 
+  async setConversationPersona(conversationId: string, personaKey: string): Promise<{ success: boolean; persona: Persona; message: string }> {
+    return this.request(`/api/conversations/${conversationId}/persona`, {
+      method: 'POST',
+      body: JSON.stringify({ persona_key: personaKey }),
+    });
+  }
+
   // Chat
   async sendMessage(message: string, conversationId?: string): Promise<ChatMessage> {
     return this.request<ChatMessage>('/api/chat', {

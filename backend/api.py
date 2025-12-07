@@ -24,18 +24,34 @@ chat_app: Optional[ChatApplication] = None
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI app initialization."""
     global chat_app
-    try:
-        # Initialize the chat application
-        chat_app = ChatApplication()
-        # Set default persona
-        chat_app.set_persona("personal_assistant")
-        print("✓ Chat application initialized")
-        print(f"  Model: {chat_app.model}")
-        print(f"  Default persona: {chat_app.current_persona}")
-    except Exception as e:
-        print(f"✗ Error initializing chat application: {e}")
-        print("  Make sure your Letta server is running and configured correctly.")
-        # Don't raise - allow the app to start but endpoints will return 503
+    import time
+    
+    # Initialize the chat application
+    chat_app = ChatApplication()
+    
+    # Wait for Letta server to be ready (with retries)
+    max_retries = 10
+    retry_delay = 2
+    for attempt in range(max_retries):
+        try:
+            # Try to set default persona (this will test Letta connection)
+            if chat_app.set_persona("personal_assistant"):
+                print("✓ Chat application initialized")
+                print(f"  Model: {chat_app.model}")
+                print(f"  Default persona: {chat_app.current_persona}")
+                break
+            else:
+                raise Exception("Failed to set persona")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⏳ Waiting for Letta server to be ready (attempt {attempt + 1}/{max_retries})...")
+                time.sleep(retry_delay)
+            else:
+                print(f"✗ Error initializing chat application after {max_retries} attempts: {e}")
+                print("  The app will start but may not work until Letta server is ready.")
+                print("  Make sure your Letta server is running and configured correctly.")
+                # Don't raise - allow the app to start but endpoints will return 503
+    
     yield
     # Cleanup (if needed)
     chat_app = None
@@ -69,6 +85,7 @@ class ChatMessageRequest(BaseModel):
     """Request model for sending a chat message."""
     message: str = Field(..., description="The user's message")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID for context")
+    persona_key: Optional[str] = Field(None, description="Optional persona key to set for this conversation if not already set")
 
 
 class ChatMessageResponse(BaseModel):
@@ -198,7 +215,23 @@ async def send_message(request: ChatMessageRequest):
             detail="Chat application not initialized"
         )
     
-    if not chat_app.agent_id:
+    # Check if conversation has a persona set, if not, try to set it from request or use default
+    if request.conversation_id:
+        # Check if persona is set for this conversation
+        if request.conversation_id not in chat_app._conversation_personas:
+            # No persona set - try to set it from request or use default
+            if request.persona_key:
+                # Set persona from request
+                chat_app.set_persona_for_conversation(request.conversation_id, request.persona_key)
+            elif chat_app.agent_id:
+                # Use default persona (backward compatibility)
+                chat_app.set_persona_for_conversation(request.conversation_id, chat_app.current_persona or "personal_assistant")
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No persona set for this conversation. Please provide persona_key in request or set a default persona."
+                )
+    elif not chat_app.agent_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No persona set. Please set a persona first."
@@ -312,6 +345,45 @@ async def set_persona(request: SetPersonaRequest):
             is_current=True
         ),
         message=f"Persona switched to: {persona['name']}"
+    )
+
+
+class SetConversationPersonaRequest(BaseModel):
+    """Request to set persona for a conversation."""
+    persona_key: str = Field(..., description="The persona key to use for this conversation")
+
+
+@app.post("/api/conversations/{conversation_id}/persona", response_model=SetPersonaResponse, tags=["Conversations"])
+async def set_conversation_persona(conversation_id: str, request: SetConversationPersonaRequest):
+    """Set the persona for a specific conversation.
+    
+    This allows each conversation to have its own persona, enabling
+    multiple conversations with different personas simultaneously.
+    """
+    if not chat_app:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat application not initialized"
+        )
+    
+    success = chat_app.set_persona_for_conversation(conversation_id, request.persona_key)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Persona '{request.persona_key}' not found. Available personas: {', '.join(list_personas())}"
+        )
+    
+    persona = get_persona(request.persona_key)
+    return SetPersonaResponse(
+        success=True,
+        persona=PersonaInfo(
+            key=request.persona_key,
+            name=persona["name"],
+            description=persona["description"],
+            is_current=True
+        ),
+        message=f"Persona set to: {persona['name']} for conversation {conversation_id}"
     )
 
 
