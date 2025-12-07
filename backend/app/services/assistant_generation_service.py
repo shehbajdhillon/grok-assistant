@@ -121,6 +121,36 @@ class AssistantGenerationService:
             )
         return self._client
 
+    async def generate_avatar_image(self, name: str, description: str, personality: str) -> str | None:
+        """
+        Generate an avatar image for the assistant using xAI Grok image generation.
+
+        Args:
+            name: The assistant's name
+            description: Brief description of the assistant
+            personality: Detailed personality prompt
+
+        Returns:
+            URL of the generated image, or None if generation fails
+        """
+        # Create a focused prompt for avatar generation
+        avatar_prompt = f"""Create a stylized digital avatar portrait for an AI assistant character:
+Name: {name}
+Description: {description}
+Personality: {personality[:500]}
+
+Style: Modern, clean digital art avatar suitable for a chat interface. The image should be a portrait-style representation that captures the essence and personality of this AI character. Use vibrant colors and a distinctive visual style."""
+
+        try:
+            response = self.client.images.generate(
+                model="grok-2-image-1212",
+                prompt=avatar_prompt,
+            )
+            return response.data[0].url
+        except Exception as e:
+            logger.warning(f"Avatar image generation failed: {e}")
+            return None
+
     async def generate_assistant(self, user_prompt: str) -> dict[str, Any]:
         """
         Generate assistant configuration from natural language prompt.
@@ -160,7 +190,17 @@ class AssistantGenerationService:
             generated = json.loads(tool_call.function.arguments)
 
             # Transform to match AssistantGenerateResponse format
-            return self._transform_response(generated)
+            result = self._transform_response(generated)
+
+            # Generate avatar image based on the assistant's characteristics
+            avatar_url = await self.generate_avatar_image(
+                name=result["name"],
+                description=result["description"],
+                personality=result["personality"],
+            )
+            result["avatarUrl"] = avatar_url
+
+            return result
 
         except Exception as e:
             logger.error(f"Assistant generation failed: {e}")
