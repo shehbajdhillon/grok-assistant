@@ -104,6 +104,11 @@ The application will automatically use the model specified in `LETTA_MODEL` when
 
 Run the chat application:
 ```bash
+# From the project root
+python -m backend.chat_app
+
+# Or if you're in the backend directory
+cd backend
 python chat_app.py
 ```
 
@@ -150,12 +155,17 @@ You: memory
 
 ```
 grok-assistant/
-├── chat_app.py          # Main chat application with CLI interface
-├── personas.py          # Persona configurations and management
+├── backend/
+│   ├── __init__.py      # Backend package initialization
+│   ├── chat_app.py      # Main chat application with CLI interface
+│   └── personas.py      # Persona configurations and management
 ├── requirements.txt     # Python dependencies
+├── pyproject.toml       # Project configuration (for uv)
 ├── .gitignore          # Git ignore rules
 └── README.md           # This file
 ```
+
+The `backend/` folder contains all the Python backend code. You can add your web application code (Flask, FastAPI, React, etc.) in the root directory alongside the backend folder.
 
 ## Personas
 
@@ -170,10 +180,12 @@ A casual, friendly companion for everyday conversation.
 
 ## Extending to a Web Application
 
-The application is designed to be easily extended to a web interface. Here's an example using Flask:
+The application is designed to be easily extended to a web interface. The backend code is in the `backend/` folder, so you can add your web app code in the root directory.
+
+Here's an example using Flask:
 
 ```python
-from chat_app import ChatApplication
+from backend.chat_app import ChatApplication
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -193,7 +205,7 @@ def chat():
 
 @app.route('/personas', methods=['GET'])
 def get_personas():
-    from personas import PERSONAS
+    from backend.personas import PERSONAS
     return jsonify({"personas": PERSONAS})
 ```
 

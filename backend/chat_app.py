@@ -7,7 +7,12 @@ import os
 from typing import Optional
 from dotenv import load_dotenv
 from letta_client import Letta
-from personas import PERSONAS, get_persona, get_persona_instructions, list_personas
+
+# Handle both module import and direct script execution
+try:
+    from .personas import PERSONAS, get_persona, get_persona_instructions, list_personas
+except ImportError:
+    from personas import PERSONAS, get_persona, get_persona_instructions, list_personas
 
 # Load environment variables from .env file
 load_dotenv()
