@@ -76,10 +76,11 @@ async def letta_health_check():
     try:
         # Try to list agents - this will fail if Letta is unreachable
         agents = letta_service.client.agents.list()
+        agent_list = list(agents) if agents else []
         return {
             "status": "healthy",
             "service": "letta",
-            "agent_count": len(agents) if agents else 0,
+            "agent_count": len(agent_list),
         }
     except Exception as e:
         return {
