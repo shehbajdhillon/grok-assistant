@@ -38,7 +38,7 @@ const EMOJI_OPTIONS = ['🤖', '🧙', '💪', '🌙', '⚡', '🏛️', '🎭',
 
 interface EditorFormProps {
   assistant?: Assistant;
-  onSave: (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void;
+  onSave: (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>, pendingVoiceFile?: File) => void;
   onDelete?: () => void;
   onBack?: () => void;
   isEditing?: boolean;
@@ -98,7 +98,7 @@ export function EditorForm({
       createdBy: 'user-1',
       isPublic,
       tags,
-    });
+    }, pendingVoiceFile || undefined);
 
     setIsSaving(false);
   };

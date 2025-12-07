@@ -11,7 +11,7 @@ import { useGenerateAssistant } from '@/hooks/use-generate-assistant';
 import { Assistant } from '@/types';
 
 interface GenerationWizardProps {
-  onSave: (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void;
+  onSave: (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>, pendingVoiceFile?: File) => void;
 }
 
 export function GenerationWizard({ onSave }: GenerationWizardProps) {
