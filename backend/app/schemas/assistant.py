@@ -18,6 +18,16 @@ VOICE_ID_MIGRATION: dict[str, str] = {
     "nova": "una",
     "shimmer": "sal",
 }
+
+
+def migrate_voice_settings(voice_settings: dict | None) -> dict:
+    """Migrate old voice IDs to new xAI voice IDs."""
+    settings = voice_settings.copy() if voice_settings else {"voiceId": "ara", "speed": 1.0, "pitch": 1.0}
+    old_voice_id = settings.get("voiceId", "ara")
+    settings["voiceId"] = VOICE_ID_MIGRATION.get(old_voice_id, old_voice_id)
+    return settings
+
+
 TonePreset = Literal[
     # Positive tones
     "professional",
@@ -105,10 +115,7 @@ class AssistantResponse(AssistantBase):
     @classmethod
     def from_orm_with_mapping(cls, assistant) -> "AssistantResponse":
         """Create from ORM model with field name mapping."""
-        # Migrate old voice IDs to new xAI voice IDs
-        voice_settings = assistant.voice_settings.copy() if assistant.voice_settings else {}
-        old_voice_id = voice_settings.get("voiceId", "ara")
-        voice_settings["voiceId"] = VOICE_ID_MIGRATION.get(old_voice_id, old_voice_id)
+        voice_settings = migrate_voice_settings(assistant.voice_settings)
 
         return cls(
             id=assistant.id,

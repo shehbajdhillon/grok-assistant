@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .assistant import AssistantResponse, VoiceSettings
+from .assistant import AssistantResponse, VoiceSettings, migrate_voice_settings
 from .message import MessageResponse
 
 
@@ -68,7 +68,7 @@ class ConversationResponse(BaseModel):
                 name=assistant.name,
                 avatarEmoji=assistant.avatar_emoji,
                 tone=assistant.tone,
-                voiceSettings=VoiceSettings(**assistant.voice_settings),
+                voiceSettings=VoiceSettings(**migrate_voice_settings(assistant.voice_settings)),
             )
 
         return cls(
