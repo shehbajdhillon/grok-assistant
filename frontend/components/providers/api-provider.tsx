@@ -8,7 +8,11 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
   const { getToken } = useAuth();
 
   useEffect(() => {
-    setAuthProvider(getToken);
+    // Wrap getToken to specify the JWT template name
+    const getTokenWithTemplate = async () => {
+      return getToken({ template: 'digipal_server' });
+    };
+    setAuthProvider(getTokenWithTemplate);
   }, [getToken]);
 
   return <>{children}</>;
