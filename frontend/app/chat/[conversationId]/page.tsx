@@ -122,8 +122,9 @@ export default function ChatPage() {
     );
   }
 
-  // Show error state
-  if (error) {
+  // Show error state only if conversation failed to load initially
+  // Don't show full-screen error for send message errors - show conversation with error message
+  if (error && !conversation && conversationLoading === false) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -163,6 +164,13 @@ export default function ChatPage() {
         onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
         onDeleteChat={handleDeleteChat}
       />
+
+      {/* Show error banner if there's an error but conversation exists */}
+      {error && conversation && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 text-sm text-red-600 dark:text-red-400">
+          Error: {error} <button onClick={() => refresh()} className="underline ml-2">Retry</button>
+        </div>
+      )}
 
       <MessageList
         messages={messages}
