@@ -227,7 +227,7 @@ export async function sendAudioMessage(
   }
 
   const formData = new FormData();
-  formData.append('audio', audioBlob, 'recording.webm');
+  formData.append('audio', audioBlob, 'recording.wav');
 
   const headers: Record<string, string> = {};
   if (token) {
