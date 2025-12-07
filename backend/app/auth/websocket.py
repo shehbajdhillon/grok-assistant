@@ -2,6 +2,7 @@
 
 import logging
 
+import httpx
 import jwt
 from jwt import PyJWKClient
 
@@ -19,6 +20,39 @@ def get_jwk_client() -> PyJWKClient:
     if _jwk_client is None:
         _jwk_client = PyJWKClient(settings.clerk_jwks_url, cache_keys=True)
     return _jwk_client
+
+
+async def _fetch_user_email(clerk_user_id: str) -> str:
+    """
+    Fetch user email from Clerk API.
+
+    This is called when the email is not included in the JWT claims.
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.clerk.com/v1/users/{clerk_user_id}",
+            headers={"Authorization": f"Bearer {settings.CLERK_SECRET_KEY}"},
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch user from Clerk: {response.status_code}")
+            raise ValueError("Could not verify user")
+
+        user_data = response.json()
+
+        # Get the primary email address
+        email_addresses = user_data.get("email_addresses", [])
+        primary_email_id = user_data.get("primary_email_address_id")
+
+        for email_obj in email_addresses:
+            if email_obj.get("id") == primary_email_id:
+                return email_obj.get("email_address")
+
+        # Fallback to first email if no primary set
+        if email_addresses:
+            return email_addresses[0].get("email_address")
+
+        raise ValueError("User has no email address")
 
 
 async def verify_websocket_token(token: str) -> dict:
@@ -53,9 +87,16 @@ async def verify_websocket_token(token: str) -> dict:
         if not clerk_id:
             raise ValueError("Invalid token: missing user ID")
 
+        # Try to get email from JWT claims first
+        email = payload.get("email")
+
+        # If email not in token, fetch from Clerk API
+        if not email:
+            email = await _fetch_user_email(clerk_id)
+
         return {
             "clerk_id": clerk_id,
-            "email": payload.get("email"),
+            "email": email,
         }
 
     except jwt.ExpiredSignatureError:
