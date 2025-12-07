@@ -1,0 +1,45 @@
+services:
+  letta-server:
+    image: letta/letta:latest
+    container_name: letta-server
+    ports:
+      - "8283:8283"
+    volumes:
+      - ~/.letta/.persist/pgdata:/var/lib/postgresql/data
+    env_file:
+      - backend/.env
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    networks:
+      - grok-assistant-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: grok-assistant-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    environment:
+      - LETTA_API_URL=http://letta-server:8283
+      - API_PORT=8000
+      - API_HOST=0.0.0.0
+    volumes:
+      # Mount backend code for development (hot reload)
+      - ./backend:/app
+      # Note: .env is loaded via environment variables in docker-compose, not mounted as file
+    depends_on:
+      - letta-server
+    networks:
+      - grok-assistant-network
+    restart: unless-stopped
+    # For development - remove reload in production
+    command: uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+
+networks:
+  grok-assistant-network:
+    driver: bridge
+

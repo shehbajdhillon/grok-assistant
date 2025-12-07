@@ -45,9 +45,12 @@ uv pip install -r backend/requirements.txt
 
 **b. Set up environment variables:**
 
-Create a `.env` file in the project root:
+Create a `.env` file in the `backend/` directory:
 
 ```bash
+# Create backend/.env file
+cd backend
+cat > .env << EOF
 # Letta server URL (defaults to localhost:8283)
 LETTA_API_URL=http://localhost:8283
 
@@ -61,6 +64,7 @@ LETTA_OLLAMA_EMBEDDING_MODEL=all-minilm
 
 # API server port (optional, defaults to 8000)
 API_PORT=8000
+EOF
 ```
 
 **c. Install and start Ollama (for free embeddings):**
@@ -112,13 +116,14 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ### Quick Start (Full Stack)
 
-You need **two terminal windows**:
+You have two options:
 
-**Terminal 1 - Backend:**
+#### Option 1: Docker Backend + Local Frontend (Recommended)
+
+**Terminal 1 - Docker Backend:**
 ```bash
 cd /path/to/grok-assistant
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-python backend/run_server.py
+docker-compose up -d
 ```
 
 The backend will start on `http://localhost:8000` with API docs at `http://localhost:8000/docs`.
@@ -130,6 +135,23 @@ npm run dev
 ```
 
 The frontend will start on `http://localhost:3000`.
+
+**Open your browser:** Navigate to `http://localhost:3000` to use the application.
+
+#### Option 2: Local Backend + Local Frontend
+
+**Terminal 1 - Backend:**
+```bash
+cd /path/to/grok-assistant
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python backend/run_server.py
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd /path/to/grok-assistant/frontend
+npm run dev
+```
 
 **Open your browser:** Navigate to `http://localhost:3000` to use the application.
 
