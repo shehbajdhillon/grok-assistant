@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Mic, Type } from 'lucide-react';
+import { Send, Mic, Type, X, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,12 @@ export function ChatInput({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isPressed, setIsPressed] = useState(false);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Slide-to-cancel state
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const startXRef = useRef<number>(0);
+  const CANCEL_THRESHOLD = -100; // pixels to left to trigger cancel
 
   // If STT not supported, default to text mode
   useEffect(() => {
@@ -101,8 +107,21 @@ export function ChatInput({
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsPressed(true);
+    startXRef.current = e.clientX;
+    setDragOffset(0);
+    setIsCancelling(false);
     await startRecording();
     startDurationTimer();
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isPressed || !isRecording) return;
+
+    const deltaX = e.clientX - startXRef.current;
+    // Only allow dragging left (negative values), clamp to -150
+    const clampedOffset = Math.min(0, Math.max(deltaX, -150));
+    setDragOffset(clampedOffset);
+    setIsCancelling(clampedOffset <= CANCEL_THRESHOLD);
   };
 
   const handlePointerUp = async (e: React.PointerEvent) => {
@@ -111,13 +130,19 @@ export function ChatInput({
     setIsPressed(false);
     stopDurationTimer();
 
-    if (isRecording) {
+    if (isCancelling) {
+      // Cancel: stop recording without sending
+      await stopRecording();
+    } else if (isRecording) {
+      // Normal: send the audio
       const blob = await stopRecording();
       if (blob && onSendAudio) {
         onSendAudio(blob);
       }
     }
     setRecordingDuration(0);
+    setDragOffset(0);
+    setIsCancelling(false);
   };
 
   const handlePointerCancel = async (e: React.PointerEvent) => {
@@ -127,6 +152,8 @@ export function ChatInput({
     stopDurationTimer();
     await stopRecording();
     setRecordingDuration(0);
+    setDragOffset(0);
+    setIsCancelling(false);
   };
 
   const canSend = message.trim().length > 0 && !disabled;
@@ -199,10 +226,85 @@ export function ChatInput({
                 )}
               </AnimatePresence>
 
+              {/* Slide-to-Cancel Container */}
+              <div className="relative flex w-full items-center justify-center">
+                {/* Cancel Zone - appears to the left */}
+                <AnimatePresence>
+                  {isRecording && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-1/2 mr-16 flex items-center gap-2"
+                    >
+                      {/* Animated chevrons pointing left */}
+                      <motion.div className="flex gap-0.5">
+                        {[0, 1, 2].map((i) => (
+                          <motion.div
+                            key={i}
+                            animate={{
+                              x: [-3, 0, -3],
+                              opacity: [0.2, 0.6, 0.2],
+                            }}
+                            transition={{
+                              duration: 1.2,
+                              delay: i * 0.1,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            }}
+                          >
+                            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+
+                      {/* Cancel indicator */}
+                      <motion.div
+                        className="flex items-center gap-2"
+                        animate={{
+                          scale: isCancelling ? 1.1 : 1,
+                          x: isCancelling ? -5 : 0,
+                        }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                      >
+                        <motion.div
+                          animate={{
+                            scale: isCancelling ? 1.2 : 1,
+                            rotate: isCancelling ? [0, -10, 10, 0] : 0,
+                          }}
+                          transition={{
+                            scale: { type: 'spring', stiffness: 400, damping: 25 },
+                            rotate: { duration: 0.3 },
+                          }}
+                          className={cn(
+                            'flex h-10 w-10 items-center justify-center rounded-full',
+                            'transition-colors duration-200',
+                            isCancelling
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'bg-white/5 text-muted-foreground'
+                          )}
+                        >
+                          <X className="h-5 w-5" />
+                        </motion.div>
+                        <span
+                          className={cn(
+                            'text-sm font-medium transition-colors duration-200',
+                            isCancelling ? 'text-red-400' : 'text-muted-foreground'
+                          )}
+                        >
+                          {isCancelling ? 'Release to cancel' : 'Slide to cancel'}
+                        </span>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
               {/* Large Microphone Button */}
               <motion.button
                 onPointerDown={handlePointerDown}
                 onPointerUp={handlePointerUp}
+                onPointerMove={handlePointerMove}
                 onPointerCancel={handlePointerCancel}
                 onPointerLeave={handlePointerCancel}
                 disabled={disabled}
@@ -210,19 +312,31 @@ export function ChatInput({
                   'relative h-24 w-24 rounded-full',
                   'touch-none select-none',
                   'flex items-center justify-center',
-                  'transition-all duration-300',
+                  'transition-[filter] duration-300',
                   'outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50',
                   disabled && 'opacity-50 cursor-not-allowed'
                 )}
                 animate={{
                   scale: isPressed ? 1.15 : 1,
+                  x: dragOffset,
+                  opacity: isCancelling ? 0.5 : 1,
+                }}
+                style={{
+                  filter: `grayscale(${Math.min(Math.abs(dragOffset) / 120, 1)})`,
                 }}
                 transition={{
                   type: 'spring',
                   stiffness: 400,
                   damping: 25,
+                  x: { type: 'spring', stiffness: 500, damping: 30 },
                 }}
-                aria-label="Hold to record voice message"
+                aria-label={
+                  isCancelling
+                    ? 'Release to cancel recording'
+                    : isRecording
+                      ? 'Recording - slide left to cancel, release to send'
+                      : 'Hold to record voice message'
+                }
               >
                 {/* Outer Glow Ring */}
                 <motion.div
@@ -267,17 +381,18 @@ export function ChatInput({
                 <motion.div
                   className="relative z-10"
                   animate={{
-                    scale: isRecording ? [1, 1.1, 1] : 1,
+                    scale: isRecording && !isCancelling ? [1, 1.1, 1] : 1,
                   }}
                   transition={{
                     duration: 0.8,
-                    repeat: isRecording ? Infinity : 0,
+                    repeat: isRecording && !isCancelling ? Infinity : 0,
                     ease: 'easeInOut',
                   }}
                 >
                   <Mic className="h-10 w-10 text-white drop-shadow-lg" />
                 </motion.div>
               </motion.button>
+              </div>
 
               {/* Help Text */}
               <motion.p
@@ -286,8 +401,14 @@ export function ChatInput({
                   opacity: isRecording ? 0.9 : 0.7,
                 }}
               >
-                {isRecording ? (
-                  <span className="text-foreground/80">Release to send</span>
+                {isCancelling ? (
+                  <span className="text-red-400">Release to cancel</span>
+                ) : isRecording ? (
+                  <span className="text-foreground/80">
+                    Release to send{' '}
+                    <span className="text-muted-foreground/50">·</span>{' '}
+                    <span className="text-muted-foreground/70">Slide left to cancel</span>
+                  </span>
                 ) : (
                   'Hold to record'
                 )}

@@ -53,7 +53,7 @@ export function EditorForm({
   const [description, setDescription] = useState(assistant?.description || '');
   const [personality, setPersonality] = useState(assistant?.personality || '');
   const [tone, setTone] = useState<TonePreset>(assistant?.tone || 'friendly');
-  const [voiceId, setVoiceId] = useState<VoiceId>(assistant?.voiceSettings.voiceId || 'alloy');
+  const [voiceId, setVoiceId] = useState<VoiceId>(assistant?.voiceSettings.voiceId || 'ara');
   const [speed, setSpeed] = useState(assistant?.voiceSettings.speed || 1.0);
   const [pitch, setPitch] = useState(assistant?.voiceSettings.pitch || 1.0);
   const [avatarEmoji, setAvatarEmoji] = useState(assistant?.avatarEmoji || '🤖');
