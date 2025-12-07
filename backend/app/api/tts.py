@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app.auth import get_current_user
+from app.dependencies import get_current_user
 from app.models.user import User
 from app.services.tts_service import tts_service
 
