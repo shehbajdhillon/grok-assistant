@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 # Type aliases matching frontend types
-VoiceId = Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+VoiceId = Literal["ara", "rex", "eve", "leo", "una", "sal"]
 TonePreset = Literal[
     # Positive tones
     "professional",
@@ -42,7 +42,7 @@ TonePreset = Literal[
 class VoiceSettings(BaseModel):
     """Voice settings schema."""
 
-    voiceId: VoiceId = "alloy"
+    voiceId: VoiceId = "ara"
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
     pitch: float = Field(default=1.0, ge=0.5, le=2.0)
 

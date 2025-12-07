@@ -24,8 +24,11 @@ class Settings(BaseSettings):
     # Letta AI
     LETTA_BASE_URL: str = "http://localhost:8283"
 
-    # OpenAI (used by Letta)
+    # OpenAI (used by Letta for embeddings, Whisper for STT)
     OPENAI_API_KEY: str = ""
+
+    # xAI (used for TTS)
+    XAI_API_KEY: str = ""
 
     # Server
     HOST: str = "0.0.0.0"
