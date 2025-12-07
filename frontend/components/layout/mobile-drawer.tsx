@@ -20,6 +20,7 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Conversation } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface MobileDrawerProps {
   open: boolean;
@@ -99,9 +100,14 @@ export function MobileDrawer({
                           : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                       )}
                     >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-base">
-                        {assistant?.avatarEmoji || '💬'}
-                      </span>
+                      <Avatar className="h-7 w-7 shrink-0 rounded-lg">
+                        {assistant?.avatarUrl && (
+                          <AvatarImage src={assistant.avatarUrl} alt={assistant.name} />
+                        )}
+                        <AvatarFallback className="rounded-lg bg-muted text-base">
+                          {assistant?.avatarEmoji || '💬'}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{convo.title}</p>
                         <p className="truncate text-xs text-muted-foreground/70">

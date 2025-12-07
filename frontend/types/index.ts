@@ -69,6 +69,7 @@ export interface ConversationAssistantInfo {
   id: string;
   name: string;
   avatarEmoji: string;
+  avatarUrl?: string | null;
   tone: TonePreset;
   voiceSettings?: VoiceSettings;
 }

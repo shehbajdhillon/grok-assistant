@@ -149,6 +149,7 @@ export async function getConversations(): Promise<Conversation[]> {
       id: c.assistant.id,
       name: c.assistant.name,
       avatarEmoji: c.assistant.avatarEmoji,
+      avatarUrl: c.assistant.avatarUrl,
       tone: c.assistant.tone,
       voiceSettings: c.assistant.voiceSettings,
     } : undefined,
