@@ -3,10 +3,7 @@
 import logging
 from typing import Optional
 
-from letta import create_client
-from letta.schemas.embedding_config import EmbeddingConfig
-from letta.schemas.llm_config import LLMConfig
-from letta.schemas.memory import ChatMemory
+from letta_client import Letta
 
 from app.config import settings
 from app.models.assistant import Assistant
@@ -22,11 +19,11 @@ class LettaService:
         self._client = None
 
     @property
-    def client(self):
+    def client(self) -> Letta:
         """Lazy initialization of Letta client."""
         if self._client is None:
             try:
-                self._client = create_client(base_url=settings.LETTA_BASE_URL)
+                self._client = Letta(base_url=settings.LETTA_BASE_URL)
             except Exception as e:
                 logger.error(f"Failed to create Letta client: {e}")
                 raise
@@ -42,34 +39,26 @@ class LettaService:
 
         Returns the agent_id to store in the conversation record.
         """
-        # Build system prompt from assistant personality
-        system_prompt = self._build_system_prompt(assistant)
+        # Build persona from assistant personality
+        persona_value = self._build_persona(assistant)
+        human_value = f"Name: {user.name or 'User'}. Email: {user.email}"
 
-        # Create memory blocks
-        memory = ChatMemory(
-            human=f"User: {user.name or user.email}",
-            persona=f"You are {assistant.name}. {assistant.personality}",
-        )
-
-        # Create the agent
+        # Create the agent using new SDK format
         try:
-            agent_state = self.client.create_agent(
+            agent_state = self.client.agents.create(
                 name=f"assistant_{assistant.id}_{user.id}",
-                memory=memory,
-                system=system_prompt,
-                llm_config=LLMConfig(
-                    model="gpt-5-mini",
-                    model_endpoint_type="openai",
-                    model_endpoint="https://api.openai.com/v1",
-                    context_window=200000,
-                ),
-                embedding_config=EmbeddingConfig(
-                    embedding_model="text-embedding-3-small",
-                    embedding_endpoint_type="openai",
-                    embedding_endpoint="https://api.openai.com/v1",
-                    embedding_dim=1536,
-                ),
-                include_base_tools=True,
+                model="openai/gpt-5-mini",
+                embedding="openai/text-embedding-3-small",
+                memory_blocks=[
+                    {
+                        "label": "human",
+                        "value": human_value,
+                    },
+                    {
+                        "label": "persona",
+                        "value": persona_value,
+                    },
+                ],
             )
 
             logger.info(f"Created Letta agent {agent_state.id} for assistant {assistant.id}")
@@ -93,10 +82,9 @@ class LettaService:
         - Maintains persona/human blocks
         """
         try:
-            response = self.client.send_message(
+            response = self.client.agents.messages.create(
                 agent_id=agent_id,
-                message=user_message,
-                role="user",
+                input=user_message,
             )
 
             # Extract the assistant's text response from Letta's response
@@ -111,55 +99,60 @@ class LettaService:
     async def delete_agent(self, agent_id: str) -> None:
         """Delete a Letta agent when conversation is deleted."""
         try:
-            self.client.delete_agent(agent_id)
+            self.client.agents.delete(agent_id)
             logger.info(f"Deleted Letta agent {agent_id}")
         except Exception as e:
             logger.warning(f"Failed to delete Letta agent {agent_id}: {e}")
 
-    def _build_system_prompt(self, assistant: Assistant) -> str:
-        """Build system prompt incorporating assistant configuration."""
+    def _build_persona(self, assistant: Assistant) -> str:
+        """Build persona block value from assistant configuration."""
         tone_instructions = {
-            "professional": "Respond in a professional, clear, and structured manner.",
-            "casual": "Keep responses casual and conversational.",
-            "friendly": "Be warm, approachable, and supportive.",
-            "formal": "Use formal language and proper etiquette.",
-            "humorous": "Incorporate humor and wit into responses.",
-            "empathetic": "Show deep empathy and emotional understanding.",
-            "motivational": "Be encouraging and push the user toward their goals.",
-            "mysterious": "Add an air of mystery and intrigue to your responses.",
+            "professional": "I respond in a professional, clear, and structured manner.",
+            "casual": "I keep responses casual and conversational.",
+            "friendly": "I am warm, approachable, and supportive.",
+            "formal": "I use formal language and proper etiquette.",
+            "humorous": "I incorporate humor and wit into my responses.",
+            "empathetic": "I show deep empathy and emotional understanding.",
+            "motivational": "I am encouraging and push users toward their goals.",
+            "mysterious": "I add an air of mystery and intrigue to my responses.",
         }
 
-        return f"""You are {assistant.name}, an AI companion.
+        tone_desc = tone_instructions.get(assistant.tone, "")
+
+        return f"""I am {assistant.name}, an AI companion.
 
 {assistant.personality}
 
-Tone guidance: {tone_instructions.get(assistant.tone, '')}
+{tone_desc}
 
-Important: You have long-term memory. You can remember previous conversations with this user.
-Use your memory to provide personalized, contextual responses. Reference past discussions when relevant.
-"""
+I have long-term memory and can remember previous conversations with this user. I use my memory to provide personalized, contextual responses and reference past discussions when relevant."""
 
     def _extract_assistant_response(self, response) -> str:
         """Extract the user-facing response from Letta's message structure."""
-        # Letta returns a list of messages including internal thoughts
-        # We want the 'assistant_message' type with 'send_message' function call
+        # New SDK returns messages with message_type field
+        # We want 'assistant_message' type
         try:
             for msg in response.messages:
-                # Check for function call to send_message
+                # Check for assistant_message type (new SDK format)
+                if hasattr(msg, "message_type") and msg.message_type == "assistant_message":
+                    if hasattr(msg, "content"):
+                        return msg.content
+
+                # Fallback: check for function_call to send_message (older format)
                 if hasattr(msg, "function_call") and msg.function_call:
                     if msg.function_call.name == "send_message":
-                        # Extract message from function arguments
                         args = msg.function_call.arguments
                         if isinstance(args, dict):
                             return args.get("message", "")
                         elif isinstance(args, str):
                             import json
-
                             parsed = json.loads(args)
                             return parsed.get("message", "")
 
-            # Fallback: look for assistant messages
+            # Fallback: look for any text content
             for msg in reversed(response.messages):
+                if hasattr(msg, "content") and msg.content:
+                    return msg.content
                 if hasattr(msg, "text") and msg.text:
                     return msg.text
 

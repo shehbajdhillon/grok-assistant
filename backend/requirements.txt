@@ -19,7 +19,7 @@ PyJWT>=2.8.0
 httpx>=0.26.0
 
 # Letta AI
-letta>=0.6.0
+letta-client>=1.3.2
 
 # Utilities
 python-dotenv>=1.0.0
