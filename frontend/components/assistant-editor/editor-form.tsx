@@ -195,13 +195,13 @@ export function EditorForm({
               <div>
                 <Label className="mb-3 block">Avatar</Label>
 
-                {/* Generated Image Preview */}
+                {/* Image Preview (AI-generated or custom URL) */}
                 {avatarUrl && (
                   <div className="mb-4">
                     <div className="relative inline-block">
                       <img
                         src={avatarUrl}
-                        alt="Generated avatar"
+                        alt="Avatar"
                         className="h-24 w-24 rounded-xl object-cover ring-2 ring-violet-500"
                       />
                       <button
@@ -213,7 +213,41 @@ export function EditorForm({
                       </button>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      AI-generated avatar. Remove to use an emoji instead.
+                      Custom avatar image. Remove to use an emoji instead.
+                    </p>
+                  </div>
+                )}
+
+                {/* Custom Image URL Input */}
+                {!avatarUrl && (
+                  <div className="mb-4">
+                    <Label htmlFor="avatarUrl" className="text-xs text-muted-foreground">
+                      Image URL (optional)
+                    </Label>
+                    <Input
+                      id="avatarUrl"
+                      type="url"
+                      placeholder="https://example.com/avatar.png"
+                      className="mt-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            setAvatarUrl(input.value.trim());
+                            input.value = '';
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value.trim()) {
+                          setAvatarUrl(e.target.value.trim());
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Paste an image URL and press Enter, or select an emoji below
                     </p>
                   </div>
                 )}
@@ -221,7 +255,7 @@ export function EditorForm({
                 {/* Emoji Selection (shown when no image or as fallback) */}
                 <div className={cn(avatarUrl && 'opacity-50')}>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    {avatarUrl ? 'Fallback emoji (used if image fails to load):' : 'Select an emoji avatar:'}
+                    {avatarUrl ? 'Fallback emoji (used if image fails to load):' : 'Or select an emoji avatar:'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {EMOJI_OPTIONS.map((emoji) => (
