@@ -196,6 +196,45 @@ export async function sendMessage(
   };
 }
 
+export async function sendAudioMessage(
+  conversationId: string,
+  audioBlob: Blob
+): Promise<Message> {
+  let token: string | null = null;
+  if (getTokenFn) {
+    token = await getTokenFn();
+  }
+
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.webm');
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Note: Don't set Content-Type for FormData - browser sets it with boundary
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/conversations/${conversationId}/messages/audio`,
+    {
+      method: 'POST',
+      headers,
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    ...data.assistantMessage,
+    createdAt: new Date(data.assistantMessage.createdAt),
+  };
+}
+
 export async function deleteConversation(id: string): Promise<void> {
   await fetchAPI(`/api/conversations/${id}`, {
     method: 'DELETE',

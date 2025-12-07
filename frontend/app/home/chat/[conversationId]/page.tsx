@@ -13,7 +13,7 @@ export default function ChatPage() {
   const router = useRouter();
   const conversationId = params.conversationId as string;
 
-  const { conversation, messages, sendMessage, loading } = useConversation(conversationId);
+  const { conversation, messages, sendMessage, refresh, loading } = useConversation(conversationId);
   const { speak, stop, isPlaying } = useTTS();
 
   const [assistant, setAssistant] = useState<Assistant | null>(null);
@@ -57,6 +57,30 @@ export default function ChatPage() {
       setIsLoading(false);
     }
   }, [assistant, conversation, sendMessage, voiceEnabled, speak]);
+
+  const handleSendAudio = useCallback(async (audioBlob: Blob) => {
+    if (!assistant || !conversation) return;
+
+    setIsLoading(true);
+
+    try {
+      // Send audio to backend for transcription and processing
+      const assistantMessage = await api.sendAudioMessage(conversationId, audioBlob);
+
+      // Refresh conversation to get both messages (user transcription + assistant response)
+      await refresh();
+
+      // Auto-play voice if enabled
+      if (voiceEnabled && assistantMessage) {
+        setPlayingMessageId(assistantMessage.id);
+        speak(assistantMessage.content, assistant.voiceSettings);
+      }
+    } catch (error) {
+      console.error('Failed to send audio message:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [assistant, conversation, conversationId, voiceEnabled, speak, refresh]);
 
   const handlePlayAudio = useCallback((messageId: string, content: string) => {
     if (!assistant) return;
@@ -111,6 +135,7 @@ export default function ChatPage() {
 
       <ChatInput
         onSend={handleSendMessage}
+        onSendAudio={handleSendAudio}
         disabled={isLoading}
         placeholder={`Message ${assistant.name}...`}
       />
