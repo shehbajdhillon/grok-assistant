@@ -47,7 +47,7 @@ class LettaService:
         try:
             agent_state = self.client.agents.create(
                 name=f"assistant_{assistant.id}_{user.id}",
-                model="openai/gpt-5-mini",
+                model="openai/gpt-4o-mini",
                 embedding="openai/text-embedding-3-small",
                 memory_blocks=[
                     {
