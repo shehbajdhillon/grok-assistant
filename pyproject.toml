@@ -1,0 +1,14 @@
+[project]
+name = "grok-assistant"
+version = "0.1.0"
+description = "A simple chat application using Letta for agent loops and memory management"
+requires-python = ">=3.12"
+dependencies = [
+    "letta>=0.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv]
+# Optional: Add dev dependencies here if needed
+# dependency-groups.dev = []
+
