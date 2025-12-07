@@ -1,6 +1,6 @@
 'use client';
 
-import type { Assistant, Conversation, Message, User, UserPreferences } from '@/types';
+import type { Assistant, Conversation, Message, TonePreset, User, UserPreferences, VoiceSettings } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://grok-assistant-production.up.railway.app';
 
@@ -111,6 +111,26 @@ export async function updateAssistant(
 export async function deleteAssistant(id: string): Promise<void> {
   await fetchAPI(`/api/assistants/${id}`, {
     method: 'DELETE',
+  });
+}
+
+// Generated assistant type for form pre-fill
+export interface GeneratedAssistant {
+  name: string;
+  description: string;
+  personality: string;
+  tone: TonePreset;
+  voiceSettings: VoiceSettings;
+  avatarEmoji: string;
+  avatarUrl: string | null;
+  isPublic: boolean;
+  tags: string[];
+}
+
+export async function generateAssistant(prompt: string): Promise<GeneratedAssistant> {
+  return fetchAPI('/api/assistants/generate', {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
   });
 }
 

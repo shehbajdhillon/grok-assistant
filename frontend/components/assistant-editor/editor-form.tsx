@@ -38,6 +38,7 @@ interface EditorFormProps {
   assistant?: Assistant;
   onSave: (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void;
   onDelete?: () => void;
+  onBack?: () => void;
   isEditing?: boolean;
 }
 
@@ -45,6 +46,7 @@ export function EditorForm({
   assistant,
   onSave,
   onDelete,
+  onBack,
   isEditing = false,
 }: EditorFormProps) {
   const router = useRouter();
@@ -128,6 +130,16 @@ export function EditorForm({
         </div>
 
         <div className="flex items-center gap-2">
+          {onBack && (
+            <Button
+              variant="outline"
+              onClick={onBack}
+              className="gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Regenerate
+            </Button>
+          )}
           {isEditing && onDelete && (
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
               <DialogTrigger asChild>
