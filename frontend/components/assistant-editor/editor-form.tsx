@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Sparkles, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +59,7 @@ export function EditorForm({
   const [speed, setSpeed] = useState(assistant?.voiceSettings.speed || 1.0);
   const [pitch, setPitch] = useState(assistant?.voiceSettings.pitch || 1.0);
   const [avatarEmoji, setAvatarEmoji] = useState(assistant?.avatarEmoji || '🤖');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(assistant?.avatarUrl || null);
   const [isPublic, setIsPublic] = useState(assistant?.isPublic ?? true);
   const [tags, setTags] = useState<string[]>(assistant?.tags || []);
   const [tagInput, setTagInput] = useState('');
@@ -82,7 +83,7 @@ export function EditorForm({
         speed,
         pitch,
       },
-      avatarUrl: null,
+      avatarUrl,
       avatarEmoji,
       createdBy: 'user-1',
       isPublic,
@@ -193,22 +194,52 @@ export function EditorForm({
               {/* Avatar Selection */}
               <div>
                 <Label className="mb-3 block">Avatar</Label>
-                <div className="flex flex-wrap gap-2">
-                  {EMOJI_OPTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setAvatarEmoji(emoji)}
-                      className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-xl text-2xl transition-all',
-                        avatarEmoji === emoji
-                          ? 'bg-violet-500/20 ring-2 ring-violet-500'
-                          : 'bg-muted/50 hover:bg-muted'
-                      )}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+
+                {/* Generated Image Preview */}
+                {avatarUrl && (
+                  <div className="mb-4">
+                    <div className="relative inline-block">
+                      <img
+                        src={avatarUrl}
+                        alt="Generated avatar"
+                        className="h-24 w-24 rounded-xl object-cover ring-2 ring-violet-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAvatarUrl(null)}
+                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-lg transition-transform hover:scale-110"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      AI-generated avatar. Remove to use an emoji instead.
+                    </p>
+                  </div>
+                )}
+
+                {/* Emoji Selection (shown when no image or as fallback) */}
+                <div className={cn(avatarUrl && 'opacity-50')}>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    {avatarUrl ? 'Fallback emoji (used if image fails to load):' : 'Select an emoji avatar:'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {EMOJI_OPTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setAvatarEmoji(emoji)}
+                        className={cn(
+                          'flex h-12 w-12 items-center justify-center rounded-xl text-2xl transition-all',
+                          avatarEmoji === emoji
+                            ? 'bg-violet-500/20 ring-2 ring-violet-500'
+                            : 'bg-muted/50 hover:bg-muted'
+                        )}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
