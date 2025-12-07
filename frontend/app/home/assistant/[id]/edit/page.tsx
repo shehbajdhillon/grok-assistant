@@ -17,18 +17,18 @@ export default function EditAssistantPage() {
   // Redirect if assistant not found
   useEffect(() => {
     if (!assistant) {
-      router.push('/');
+      router.push('/home');
     }
   }, [assistant, router]);
 
   const handleSave = (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
     update(assistantId, data);
-    router.push('/');
+    router.push('/home');
   };
 
   const handleDelete = () => {
     remove(assistantId);
-    router.push('/');
+    router.push('/home');
   };
 
   if (!assistant) {

@@ -11,7 +11,7 @@ export default function NewAssistantPage() {
 
   const handleSave = (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
     create(data);
-    router.push('/');
+    router.push('/home');
   };
 
   return <EditorForm onSave={handleSave} />;

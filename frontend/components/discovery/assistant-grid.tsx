@@ -19,7 +19,7 @@ export function AssistantGrid({ assistants, isLoading = false }: AssistantGridPr
   const handleAssistantClick = (assistant: Assistant) => {
     // Create a new conversation and navigate to it
     const conversation = createConversation(assistant.id);
-    router.push(`/chat/${conversation.id}`);
+    router.push(`/home/chat/${conversation.id}`);
   };
 
   if (isLoading) {

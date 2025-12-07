@@ -18,7 +18,7 @@ interface FABProps {
 }
 
 export function FAB({
-  href = '/assistant/new',
+  href = '/home/assistant/new',
   onClick,
   label = 'Create new assistant',
 }: FABProps) {
