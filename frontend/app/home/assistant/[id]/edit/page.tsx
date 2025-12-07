@@ -2,27 +2,34 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
 import { EditorForm } from '@/components/assistant-editor';
 import { useAssistants } from '@/hooks/use-assistants';
-import { Assistant } from '@/types';
+import { Assistant, User } from '@/types';
+import * as api from '@/lib/api-client';
+import { useAuthReady } from '@/components/providers/api-provider';
 
 export default function EditAssistantPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useUser();
   const { getById, update, remove } = useAssistants();
+  const authReady = useAuthReady();
 
   const assistantId = params.id as string;
   const [assistant, setAssistant] = useState<Assistant | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load assistant and check ownership
+  // Load current user and assistant
   useEffect(() => {
-    if (!user?.id) return;
+    if (!authReady) return;
 
-    getById(assistantId)
-      .then(data => {
+    Promise.all([
+      api.getCurrentUser(),
+      getById(assistantId)
+    ])
+      .then(([user, data]) => {
+        setCurrentUser(user);
+
         if (!data) {
           router.push('/home');
           return;
@@ -45,11 +52,11 @@ export default function EditAssistantPage() {
         setAssistant(data);
       })
       .catch(err => {
-        console.error('Failed to load assistant:', err);
+        console.error('Failed to load data:', err);
         router.push('/home');
       })
       .finally(() => setLoading(false));
-  }, [assistantId, getById, router, user?.id]);
+  }, [assistantId, getById, router, authReady]);
 
   const handleSave = async (data: Omit<Assistant, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
     try {

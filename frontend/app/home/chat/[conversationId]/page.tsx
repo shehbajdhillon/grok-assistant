@@ -106,6 +106,7 @@ export default function ChatPage() {
         playingMessageId={playingMessageId}
         onPlayAudio={handlePlayAudio}
         onStopAudio={handleStopAudio}
+        isLoading={isLoading || loading}
       />
 
       <ChatInput
