@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # xAI (used for TTS)
     XAI_API_KEY: str = ""
 
+    # Supabase Storage (for voice samples)
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
+    SUPABASE_BUCKET_NAME: str = "voice-samples"
+
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000

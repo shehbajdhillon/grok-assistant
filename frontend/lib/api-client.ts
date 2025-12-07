@@ -289,3 +289,90 @@ export async function updateUserPreferences(
     preferences: data.preferences,
   };
 }
+
+// Voice sample upload/delete
+export async function uploadVoiceSample(
+  assistantId: string,
+  audioFile: File
+): Promise<Assistant> {
+  let token: string | null = null;
+  if (getTokenFn) {
+    token = await getTokenFn();
+  }
+
+  const formData = new FormData();
+  formData.append('audio', audioFile);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Note: Don't set Content-Type for FormData - browser sets it with boundary
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/assistants/${assistantId}/voice`,
+    {
+      method: 'POST',
+      headers,
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    ...data,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
+  };
+}
+
+export async function removeVoiceSample(assistantId: string): Promise<Assistant> {
+  const data = await fetchAPI(`/api/assistants/${assistantId}/voice`, {
+    method: 'DELETE',
+  });
+
+  return {
+    ...data,
+    createdAt: new Date(data.createdAt),
+    updatedAt: new Date(data.updatedAt),
+  };
+}
+
+// Custom voice TTS
+export async function generateCustomTTS(
+  text: string,
+  customVoiceUrl: string
+): Promise<Blob> {
+  let token: string | null = null;
+  if (getTokenFn) {
+    token = await getTokenFn();
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      text,
+      custom_voice_url: customVoiceUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.blob();
+}

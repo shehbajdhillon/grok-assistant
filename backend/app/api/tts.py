@@ -1,11 +1,16 @@
-"""TTS (Text-to-Speech) WebSocket API endpoint."""
+"""TTS (Text-to-Speech) API endpoints."""
 
 import logging
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
+from pydantic import BaseModel
 
 from app.auth.websocket import verify_websocket_token
+from app.dependencies import get_current_user
+from app.models.user import User
 from app.services.tts_ws_service import tts_ws_service
+from app.services.voice_cloning_service import voice_cloning_service
 
 logger = logging.getLogger(__name__)
 
@@ -79,3 +84,41 @@ async def websocket_tts_stream(
             await websocket.close()
         except Exception:
             pass  # Already closed
+
+
+class CustomTTSRequest(BaseModel):
+    """Request body for custom voice TTS."""
+
+    text: str
+    custom_voice_url: str
+
+
+@router.post("/generate")
+async def generate_custom_tts(
+    request: CustomTTSRequest,
+    _: User = Depends(get_current_user),
+) -> Response:
+    """
+    Generate TTS audio using voice cloning.
+
+    Returns MP3 audio bytes for playback via HTML5 Audio element.
+    """
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    if not request.custom_voice_url:
+        raise HTTPException(status_code=400, detail="Custom voice URL is required")
+
+    try:
+        audio_bytes = await voice_cloning_service.generate_speech(
+            text=request.text,
+            voice_url=request.custom_voice_url,
+        )
+        return Response(
+            content=audio_bytes,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=speech.mp3"},
+        )
+    except Exception as e:
+        logger.error(f"Custom TTS generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate speech")

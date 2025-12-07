@@ -1,4 +1,5 @@
 export type VoiceId = 'ara' | 'rex' | 'eve' | 'leo' | 'una' | 'sal';
+export type VoiceType = 'preset' | 'custom';
 
 export type TonePreset =
   // Positive tones
@@ -30,7 +31,10 @@ export type TonePreset =
   | 'pessimistic';
 
 export interface VoiceSettings {
+  voiceType: VoiceType;
   voiceId: VoiceId;
+  customVoiceUrl: string | null;
+  customVoiceFileName: string | null;
   speed: number; // 0.5 - 2.0
   pitch: number; // 0.5 - 2.0
 }
